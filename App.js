@@ -17,26 +17,26 @@ export default function App() {
     initDatabase();
   }, []);
 
- const handleLoginSuccess = (userFromDb) => {
-  if (!userFromDb) return;
+  const handleLoginSuccess = (userFromDb) => {
+    if (!userFromDb) return;
 
-  const fullName = userFromDb.username || 'Hero';
-  const firstPart = fullName.trim().split(' ')[0];
-  const firstName = firstPart.charAt(0).toUpperCase() + firstPart.slice(1).toLowerCase();
+    const fullName = userFromDb.username || 'Hero';
+    const firstName = fullName.trim().split(' ')[0];
 
-  setUserData({
-    firstName: firstName,
-    xp: userFromDb.xp || 0,
-    level: userFromDb.level || 1,
-    streak: userFromDb.streak || 0,
-    workoutsToday: userFromDb.workoutsToday || 0,
-    caloriesLogged: userFromDb.caloriesLogged || 0,
-    // ENSURE THIS IS AT LEAST 1 FOR NEW USERS
-    achievementsCount: userFromDb.achievementsCount || 1, 
-  });
-  
-  setCurrentScreen('MainApp');
-};
+    // MAP DATA DIRECTLY FROM DB VALUES
+    setUserData({
+      id: userFromDb.id, // CRITICAL: needed for quest lookup
+      firstName: firstName,
+      xp: userFromDb.xp, // Uses DB value
+      level: userFromDb.level, // Uses DB value
+      streak: userFromDb.streak || 0,
+      workoutsToday: userFromDb.workoutsToday || 0,
+      caloriesLogged: userFromDb.caloriesLogged || 0,
+      achievementsCount: userFromDb.achievementsCount || 1, 
+    });
+    
+    setCurrentScreen('MainApp');
+  };
 
   const handleLogout = () => {
     setUserData(null);
