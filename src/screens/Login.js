@@ -5,20 +5,10 @@ import {
   ScrollView, Dimensions 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
-  Mail, Lock, CheckCircle2, AlertCircle, 
-  Eye, EyeOff, BicepsFlexed 
-} from 'lucide-react-native';
+import { Mail, Lock, CheckCircle2, AlertCircle, Eye, EyeOff, BicepsFlexed } from 'lucide-react-native';
 import { loginUser } from '../database/database';
 
 const { width, height } = Dimensions.get('window');
-
-const BackgroundShapes = () => (
-  <View style={StyleSheet.absoluteFill} pointerEvents="none">
-    <View style={[styles.shape, styles.shapeTop]} />
-    <View style={[styles.shape, styles.shapeBottom]} />
-  </View>
-);
 
 export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -27,6 +17,7 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('success'); 
   const [modalMsg, setModalMsg] = useState('');
+  const [userBuffer, setUserBuffer] = useState(null); // Holds user data until modal is dismissed
 
   const showAlert = (type, message) => {
     setModalType(type);
@@ -43,6 +34,7 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
     try {
       const user = loginUser(email, password);
       if (user) {
+        setUserBuffer(user); // Store found user
         showAlert('success', `Welcome back, ${user.username}!`);
       } else {
         showAlert('error', 'Invalid email or password.');
@@ -54,13 +46,10 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <BackgroundShapes />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              <BicepsFlexed color="#1E3A8A" size={40} />
-            </View>
+            <View style={styles.iconContainer}><BicepsFlexed color="#1E3A8A" size={40} /></View>
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to continue your fitness journey</Text>
           </View>
@@ -70,13 +59,7 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
               <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputWrapper}>
                 <Mail color="#64748B" size={18} style={styles.icon} />
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="you@example.com" 
-                  autoCapitalize="none"
-                  value={email} 
-                  onChangeText={setEmail} 
-                />
+                <TextInput style={styles.input} placeholder="you@example.com" autoCapitalize="none" value={email} onChangeText={setEmail} />
               </View>
             </View>
 
@@ -84,13 +67,7 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
               <Text style={styles.label}>Password</Text>
               <View style={styles.inputWrapper}>
                 <Lock color="#64748B" size={18} style={styles.icon} />
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Enter password" 
-                  secureTextEntry={!showPassword}
-                  value={password} 
-                  onChangeText={setPassword} 
-                />
+                <TextInput style={styles.input} placeholder="Enter password" secureTextEntry={!showPassword} value={password} onChangeText={setPassword} />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff color="#1E3A8A" size={20} /> : <Eye color="#94A3B8" size={20} />}
                 </TouchableOpacity>
@@ -103,9 +80,7 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
 
             <View style={styles.linkContainer}>
               <Text style={styles.linkText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={onSwitchToSignUp}>
-                <Text style={styles.linkAction}>Sign Up</Text>
-              </TouchableOpacity>
+              <TouchableOpacity onPress={onSwitchToSignUp}><Text style={styles.linkAction}>Sign Up</Text></TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -122,9 +97,7 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
                 style={[styles.modalBtn, { backgroundColor: modalType === 'success' ? '#1E3A8A' : '#EF4444' }]} 
                 onPress={() => {
                   setModalVisible(false);
-                  if (modalType === 'success') {
-                    onLoginSuccess(); 
-                  }
+                  if (modalType === 'success') onLoginSuccess(userBuffer); 
                 }}
               >
                 <Text style={styles.modalBtnText}>Dismiss</Text>
@@ -140,9 +113,6 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
   container: { flex: 1 },
-  shape: { position: 'absolute', borderRadius: 999, opacity: 0.4 },
-  shapeTop: { width: width * 0.9, height: width * 0.9, backgroundColor: '#E0E7FF', top: -height * 0.1, right: -width * 0.2 },
-  shapeBottom: { width: width * 0.7, height: width * 0.7, backgroundColor: '#DBEAFE', bottom: -height * 0.05, left: -width * 0.1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 },
   header: { marginBottom: 32, alignItems: 'center' },
   iconContainer: { backgroundColor: '#FFF', padding: 16, borderRadius: 22, elevation: 4, marginBottom: 16 },
