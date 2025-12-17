@@ -6,12 +6,17 @@ import { initDatabase } from './src/database/database';
 import SignUp from './src/screens/SignUp';
 import Login from './src/screens/Login';
 import Home from './src/screens/Home';
+import WorkoutScreen from './src/screens/WorkoutScreen';
+import WorkoutsScreen from './src/screens/WorkoutsScreen';
+import NutritionScreen from './src/screens/NutritionScreen'; // 1. IMPORTED
 import NavBar from './src/components/Navbar';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('Login');
   const [activeTab, setActiveTab] = useState('Home');
   const [userData, setUserData] = useState(null);
+  const [isWorkoutActive, setIsWorkoutActive] = useState(false);
+  const [activeWorkoutData, setActiveWorkoutData] = useState(null);
 
   useEffect(() => {
     initDatabase();
@@ -19,16 +24,14 @@ export default function App() {
 
   const handleLoginSuccess = (userFromDb) => {
     if (!userFromDb) return;
-
     const fullName = userFromDb.username || 'Hero';
     const firstName = fullName.trim().split(' ')[0];
 
-    // MAP DATA DIRECTLY FROM DB VALUES
     setUserData({
-      id: userFromDb.id, // CRITICAL: needed for quest lookup
+      id: userFromDb.id,
       firstName: firstName,
-      xp: userFromDb.xp, // Uses DB value
-      level: userFromDb.level, // Uses DB value
+      xp: userFromDb.xp,
+      level: userFromDb.level,
       streak: userFromDb.streak || 0,
       workoutsToday: userFromDb.workoutsToday || 0,
       caloriesLogged: userFromDb.caloriesLogged || 0,
@@ -42,6 +45,12 @@ export default function App() {
     setUserData(null);
     setCurrentScreen('Login');
     setActiveTab('Home');
+    setIsWorkoutActive(false);
+  };
+
+  const startWorkoutSession = (workoutData) => {
+    setActiveWorkoutData(workoutData);
+    setIsWorkoutActive(true);
   };
 
   if (currentScreen === 'Login') {
@@ -60,12 +69,41 @@ export default function App() {
     );
   }
 
+  if (isWorkoutActive && activeWorkoutData) {
+    return (
+      <SafeAreaProvider>
+        <WorkoutScreen 
+          workoutData={activeWorkoutData}
+          userId={userData.id}
+          userStats={userData}
+          onComplete={() => {
+            setIsWorkoutActive(false);
+            setActiveWorkoutData(null);
+          }}
+        />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
         <View style={styles.content}>
-          {activeTab === 'Home' && <Home user={userData} />}
-          {activeTab === 'Workouts' && <View style={styles.placeholder} />}
+          {activeTab === 'Home' && (
+            <Home 
+              user={userData} 
+              onWorkoutStart={startWorkoutSession}
+            />
+          )}
+          {activeTab === 'Workouts' && (
+            <WorkoutsScreen userId={userData.id} />
+          )}
+
+          {/* 2. ADDED NUTRITION SCREEN CONDITION */}
+          {activeTab === 'Nutrition' && (
+            <NutritionScreen userId={userData?.id} />
+          )}
+
           {activeTab === 'Stats' && <View style={styles.placeholder} />}
           {activeTab === 'Profile' && (
             <View style={styles.profileContainer}>

@@ -7,19 +7,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   Target, Flame, Trophy, 
   ChevronRight, Award, Activity, X,
-  CheckCircle2
+  CheckCircle2, Quote as QuoteIcon,
+  Zap, Dumbbell, Timer
 } from 'lucide-react-native';
 
-// DATABASE IMPORTS
 import { 
   updateUserStatsInDB, 
   saveQuestCompletion, 
-  getTodaysCompletedQuests 
+  getTodaysCompletedQuests,
+  getWorkoutsForToday,
+  logWorkout
 } from '../database/database';
 
-// Move StatBox here so it's defined before use
-const StatBox = ({ icon, value, label, sub }) => (
-  <View style={styles.statBox}>
+const StatBox = ({ icon, value, label, sub, onPress, style }) => (
+  <TouchableOpacity 
+    style={[styles.cardBase, styles.statBox, style]} 
+    onPress={onPress}
+    disabled={!onPress}
+  >
     <View style={styles.statTopRow}>
       <View style={styles.statIconWrapper}>{icon}</View>
       <Text style={styles.statValue}>{value}</Text>
@@ -28,18 +33,43 @@ const StatBox = ({ icon, value, label, sub }) => (
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statSubLabel}>{sub}</Text>
     </View>
-  </View>
+  </TouchableOpacity>
 );
 
-export default function Home({ user: initialUser }) {
+export default function Home({ user: initialUser, onWorkoutStart }) {
   const [showAchievements, setShowAchievements] = useState(false);
+  const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+  const [generatedWorkout, setGeneratedWorkout] = useState(null);
   const [user, setUser] = useState(initialUser);
   const [quests, setQuests] = useState([]);
+  const [dailyQuote, setDailyQuote] = useState({ text: '', author: '' });
+  const [todayWorkouts, setTodayWorkouts] = useState([]);
 
-  // FETCH PERSISTED QUESTS ON LOAD
+  const intensities = [
+    { id: 'Low', title: 'Light', desc: 'Focus on mobility and steady movement.', color: '#10B981', xp: 15 },
+    { id: 'Medium', title: 'Moderate', desc: 'Balanced cardio and strength routine.', color: '#6366F1', xp: 30 },
+    { id: 'High', title: 'Intense', desc: 'High-energy HIIT and heavy lifting.', color: '#EF4444', xp: 50 },
+  ];
+
+  const exercisePool = {
+    Low: ["Walking (5 mins)"],
+    Medium: ["Bodyweight Squats", "Standard Pushups", "Plank (60s)", "Lunges", "Mountain Climbers", "Jumping Jacks", "Dumbbell Press", "Bicep Curls", "Bicycle Crunches", "Cossack Squats"],
+    High: ["Burpees (15 reps)", "Thrusters", "Sprints (100m)", "Jump Squats", "Diamond Pushups", "Box Jumps", "Pull Ups", "V-Ups", "Battle Ropes", "Clean & Press"]
+  };
+
+  const quotesPool = [
+    { text: "Fitness is the ultimate form of honesty. You cannot cheat the grind.", author: "Daily Wisdom" },
+    { text: "The iron never lies; it will always give you the real deal.", author: "Henry Rollins" },
+    { text: "Integrity is doing the right thing, even when no one is watching your reps.", author: "Discipline" },
+    { text: "Your body is a reflection of your lifestyle. It doesn't know how to lie.", author: "Wellness" },
+    { text: "Discipline is telling yourself the truth and acting on it.", author: "Inspiration" }
+  ];
+
   useEffect(() => {
+    const randomQuote = quotesPool[Math.floor(Math.random() * quotesPool.length)];
+    setDailyQuote(randomQuote);
+
     const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    
     const questPool = {
       Monday: [
         { id: 'q1', title: "Drink 2L of water", xp: 20 },
@@ -59,22 +89,47 @@ export default function Home({ user: initialUser }) {
     };
 
     const dailyPool = questPool[todayName] || questPool.default;
-
-    // Get completed IDs for THIS user for TODAY from SQLite
     const completedIds = getTodaysCompletedQuests(user.id);
-
-    // Sync state
-    const syncedQuests = dailyPool.map(q => ({
+    const workouts = getWorkoutsForToday(user.id);
+    
+    setTodayWorkouts(workouts);
+    setQuests(dailyPool.map(q => ({
       ...q,
       completed: completedIds.includes(q.id)
-    }));
-
-    setQuests(syncedQuests);
+    })));
   }, [user.id]);
 
   const currentXp = user?.xp || 0;
   const maxXp = 100;
   const progressPercent = Math.min((currentXp / maxXp) * 100, 100);
+
+  const handleGenerateWorkout = (level) => {
+    const workoutList = exercisePool[level.id];
+    setGeneratedWorkout({
+      level: level.title,
+      exercises: workoutList,
+      xp: level.xp
+    });
+  };
+
+  const handleCompleteWorkout = () => {
+    if (!generatedWorkout) return;
+
+    // Redundant log removed here to prevent double sessions.
+    // The workout is now logged only once within WorkoutScreen.js.
+
+    if (onWorkoutStart) {
+      onWorkoutStart({
+        level: generatedWorkout.level,
+        exercises: generatedWorkout.exercises,
+        xp: generatedWorkout.xp,
+        intensity: generatedWorkout.level 
+      });
+    }
+
+    setShowWorkoutModal(false);
+    setGeneratedWorkout(null);
+  };
 
   const handleQuestToggle = (questId, questXp) => {
     const isAlreadyDone = quests.find(q => q.id === questId)?.completed;
@@ -90,24 +145,24 @@ export default function Home({ user: initialUser }) {
 
     updateUserStatsInDB(user.id, newXp, newLevel);
     saveQuestCompletion(user.id, questId);
-
     setUser(prev => ({ ...prev, xp: newXp, level: newLevel }));
     setQuests(prev => prev.map(q => q.id === questId ? { ...q, completed: true } : q));
   };
 
+  const hasEarlyBirdWorkout = todayWorkouts.some(w => {
+    const date = new Date(w.timestamp);
+    return date.getHours() < 8;
+  });
+
   const allBadges = [
-    { id: 1, title: 'Welcome Hero', desc: 'Successfully created an account', earned: true, color: '#10B981' },
-    { id: 2, title: 'Early Bird', desc: 'Workout before 8 AM', earned: user?.workoutsToday > 0, color: '#F59E0B' },
+    { id: 1, title: 'Welcome Hero', desc: 'Account created', earned: true, color: '#10B981' },
+    { id: 2, title: 'Early Bird', desc: 'Workout before 8 AM', earned: hasEarlyBirdWorkout, color: '#F59E0B' },
     { id: 3, title: 'Streak Master', desc: '7 days in a row', earned: user?.streak >= 7, color: '#6366F1' },
-    { id: 4, title: 'Calorie Crusher', desc: 'Burn 500kcal in one go', earned: user?.caloriesLogged >= 500, color: '#EF4444' },
   ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Good Afternoon,</Text>
@@ -122,7 +177,7 @@ export default function Home({ user: initialUser }) {
         <View style={styles.levelCard}>
           <View style={styles.levelHeader}>
             <View>
-              <Text style={styles.levelSub}>RANK</Text>
+              <Text style={styles.levelSub}>CURRENT RANK</Text>
               <Text style={styles.levelTitle}>{user.level < 5 ? 'Novice Hero' : 'Rising Star'}</Text>
             </View>
             <View style={styles.xpBadge}>
@@ -134,18 +189,43 @@ export default function Home({ user: initialUser }) {
               <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
             </View>
             <View style={styles.progressLabelRow}>
-               <Text style={styles.progressText}>{currentXp} / {maxXp} XP</Text>
-               <Text style={styles.progressText}>Next: Level {user.level + 1}</Text>
+               <Text style={styles.progressText}>{currentXp}/{maxXp} XP</Text>
+               <Text style={styles.progressText}>Next: Lvl {user.level + 1}</Text>
             </View>
           </View>
         </View>
 
+        <View style={[styles.cardBase, styles.quoteCard]}>
+          <View style={styles.quoteTopRow}>
+            <QuoteIcon color="#6366F1" size={20} fill="#6366F120" />
+            <Text style={styles.quoteTag}>DAILY FOCUS</Text>
+          </View>
+          <Text style={styles.quoteText}>"{dailyQuote.text}"</Text>
+          <Text style={styles.quoteAuthor}>— {dailyQuote.author}</Text>
+        </View>
+
         <View style={styles.statsGrid}>
-          <StatBox icon={<Target color="#1E40AF" size={18} />} value={user?.workoutsToday || "0"} label="Workouts" sub="Today" />
-          <StatBox icon={<Activity color="#059669" size={18} />} value={user?.caloriesLogged || "0"} label="Calories" sub="Burned" />
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowAchievements(true)}>
-            <StatBox icon={<Trophy color="#D97706" size={18} />} value={user?.achievementsCount || "1"} label="Badges" sub="Earned" />
-          </TouchableOpacity>
+          <StatBox 
+            icon={<Target color="#1E40AF" size={18} />} 
+            value={todayWorkouts.length} 
+            label="Workouts" 
+            sub="Today" 
+            onPress={() => setShowWorkoutModal(true)}
+          />
+          <StatBox 
+            icon={<Activity color="#059669" size={18} />} 
+            value={user?.caloriesLogged || "0"} 
+            label="Calories" 
+            sub="Burned" 
+          />
+          <StatBox 
+            icon={<Trophy color="#D97706" size={18} />} 
+            value={allBadges.filter(b => b.earned).length} 
+            label="Badges" 
+            sub="Collected" 
+            onPress={() => setShowAchievements(true)}
+            style={styles.badgeStatBox}
+          />
         </View>
 
         <View style={styles.sectionHeader}>
@@ -153,7 +233,7 @@ export default function Home({ user: initialUser }) {
           <View style={styles.xpBonusContainer}><Text style={styles.xpBonusText}>Earn XP</Text></View>
         </View>
         
-        <View style={styles.questCard}>
+        <View style={[styles.cardBase, styles.questCard]}>
           {quests.map((quest) => (
             <TouchableOpacity 
               key={quest.id} 
@@ -162,32 +242,85 @@ export default function Home({ user: initialUser }) {
               disabled={quest.completed}
             >
               <CheckCircle2 
-                color={quest.completed ? '#10B981' : '#E2E8F0'} 
+                color={quest.completed ? '#10B981' : '#CBD5E1'} 
                 size={22} 
                 fill={quest.completed ? '#10B98120' : 'transparent'} 
               />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.questText, quest.completed && styles.questTextDone]}>
-                  {quest.title}
-                </Text>
+                <Text style={[styles.questText, quest.completed && styles.questTextDone]}>{quest.title}</Text>
               </View>
               {!quest.completed && <Text style={styles.questXpTag}>+{quest.xp} XP</Text>}
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.achievementCard} onPress={() => setShowAchievements(true)}>
-          <View style={styles.achievementIconBox}><Award color="#F59E0B" size={24} /></View>
-          <View style={styles.achievementInfo}>
-            <Text style={styles.achievementTitle}>Welcome {user.firstName}</Text>
-            <Text style={styles.achievementSub}>Successfully earned: Account Badge</Text>
+        <TouchableOpacity style={[styles.cardBase, styles.achievementPrompt]} onPress={() => setShowAchievements(true)}>
+          <View style={styles.achievementIconBox}><Award color="#F59E0B" size={22} /></View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.achievementTitle}>View Hall of Fame</Text>
+            <Text style={styles.achievementSub}>See all your earned milestones</Text>
           </View>
           <ChevronRight color="#CBD5E1" size={20} />
         </TouchableOpacity>
+
       </ScrollView>
 
-      {/* Modal remains unchanged... */}
-      <Modal visible={showAchievements} animationType="slide" transparent={true}>
+      <Modal visible={showWorkoutModal} animationType="fade" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{generatedWorkout ? 'Perform Workout' : 'Start Workout'}</Text>
+              <TouchableOpacity onPress={() => { setShowWorkoutModal(false); setGeneratedWorkout(null); }}>
+                <X color="#0F172A" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            {!generatedWorkout ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {intensities.map((item) => (
+                  <TouchableOpacity 
+                    key={item.id} 
+                    style={styles.intensityCard}
+                    onPress={() => handleGenerateWorkout(item)}
+                  >
+                    <View style={[styles.intensityIcon, { backgroundColor: item.color + '15' }]}>
+                      <Zap color={item.color} size={24} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 15 }}>
+                      <Text style={styles.intensityTitle}>{item.title}</Text>
+                      <Text style={styles.intensityDesc}>{item.desc}</Text>
+                    </View>
+                    <ChevronRight color="#CBD5E1" size={20} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={{ flexShrink: 1 }}>
+                <View style={styles.workoutBanner}>
+                  <Dumbbell color="#1E3A8A" size={20} />
+                  <Text style={styles.workoutBannerText}>{generatedWorkout.level} Routine • 10 Steps</Text>
+                </View>
+                <ScrollView contentContainerStyle={styles.exerciseList} showsVerticalScrollIndicator={false}>
+                  {generatedWorkout.exercises.map((ex, idx) => (
+                    <View key={idx} style={styles.exerciseItem}>
+                      <View style={styles.exerciseIndexBox}>
+                        <Text style={styles.exerciseIndex}>{idx + 1}</Text>
+                      </View>
+                      <Text style={styles.exerciseName}>{ex}</Text>
+                      <Timer color="#94A3B8" size={16} />
+                    </View>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity style={styles.completeBtn} onPress={handleCompleteWorkout}>
+                  <Text style={styles.completeBtnText}>Start Workout</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showAchievements} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -197,7 +330,7 @@ export default function Home({ user: initialUser }) {
             <ScrollView contentContainerStyle={styles.badgeList} showsVerticalScrollIndicator={false}>
               {allBadges.map((badge) => (
                 <View key={badge.id} style={[styles.badgeItem, !badge.earned && styles.badgeLocked]}>
-                  <View style={[styles.badgeIconCircle, { backgroundColor: badge.earned ? badge.color + '20' : '#F1F5F9' }]}>
+                  <View style={[styles.badgeIconCircle, { backgroundColor: badge.earned ? badge.color + '15' : '#F1F5F9' }]}>
                     <Award color={badge.earned ? badge.color : '#94A3B8'} size={28} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 15 }}>
@@ -209,7 +342,7 @@ export default function Home({ user: initialUser }) {
               ))}
             </ScrollView>
             <Pressable style={styles.closeBtn} onPress={() => setShowAchievements(false)}>
-              <Text style={styles.closeBtnText}>Back to Profile</Text>
+              <Text style={styles.closeBtnText}>Continue Your Journey</Text>
             </Pressable>
           </View>
         </View>
@@ -220,58 +353,102 @@ export default function Home({ user: initialUser }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  scrollContent: { 
-    padding: 20, 
-    paddingBottom: 110 // ADDED: Extra padding so NavBar doesn't cover content
+  scrollContent: { padding: 20, paddingBottom: 110 },
+  cardBase: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  greeting: { fontSize: 14, color: '#64748B', fontWeight: '500' },
-  userName: { fontSize: 32, fontWeight: '900', color: '#0F172A' },
-  streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9' },
+  greeting: { fontSize: 13, color: '#64748B', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  userName: { fontSize: 32, fontWeight: '900', color: '#0F172A', marginTop: -2 },
+  streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0' },
   streakText: { marginLeft: 6, fontWeight: '800', fontSize: 16, color: '#0F172A' },
-  levelCard: { backgroundColor: '#1E3A8A', borderRadius: 24, padding: 24, marginBottom: 16 },
+  levelCard: { backgroundColor: '#1E3A8A', borderRadius: 28, padding: 24, marginBottom: 16 },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  levelSub: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '800' },
-  levelTitle: { color: '#FFF', fontSize: 22, fontWeight: '800' },
-  xpBadge: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  levelSub: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  levelTitle: { color: '#FFF', fontSize: 24, fontWeight: '900' },
+  xpBadge: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   xpBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
-  progressContainer: { marginTop: 20 },
-  progressBarBackground: { height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3 },
-  progressBarFill: { height: 6, backgroundColor: '#60A5FA', borderRadius: 3 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  progressText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600' },
-  statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  statBox: { flex: 1, backgroundColor: '#FFF', borderRadius: 20, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', minHeight: 100 },
-  statTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  statIconWrapper: { padding: 6, borderRadius: 10, backgroundColor: '#F1F5F9' },
-  statValue: { fontSize: 24, fontWeight: '900', color: '#0F172A' },
+  progressContainer: { marginTop: 24 },
+  progressBarBackground: { height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4 },
+  progressBarFill: { height: 8, backgroundColor: '#60A5FA', borderRadius: 4 },
+  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  progressText: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '700' },
+  quoteCard: { padding: 20, marginBottom: 20, backgroundColor: '#F0F4FF' },
+  quoteTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
+  quoteTag: { fontSize: 10, fontWeight: '800', color: '#6366F1', letterSpacing: 1 },
+  quoteText: { fontSize: 15, color: '#1E1B4B', lineHeight: 22, fontWeight: '600', fontStyle: 'italic' },
+  quoteAuthor: { fontSize: 12, color: '#6366F1', fontWeight: '700', marginTop: 12 },
+  statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  statBox: { flex: 1, padding: 14, minHeight: 110 },
+  badgeStatBox: { borderColor: '#FED7AA', backgroundColor: '#FFFAF5' },
+  statTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  statIconWrapper: { padding: 8, borderRadius: 12, backgroundColor: '#F1F5F9' },
+  statValue: { fontSize: 22, fontWeight: '900', color: '#0F172A' },
   statTextWrapper: { marginTop: 'auto' },
   statLabel: { fontSize: 13, fontWeight: '700', color: '#334155' },
-  statSubLabel: { fontSize: 10, fontWeight: '500', color: '#94A3B8' },
+  statSubLabel: { fontSize: 10, fontWeight: '600', color: '#94A3B8' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  questCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 24 },
-  questItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  questCard: { padding: 8, marginBottom: 20 },
+  questItem: { flexDirection: 'row', alignItems: 'center', padding: 12, marginVertical: 2 },
   questText: { fontSize: 14, color: '#334155', fontWeight: '700' },
   questTextDone: { color: '#94A3B8', textDecorationLine: 'line-through' },
-  questXpTag: { fontSize: 12, fontWeight: '800', color: '#2563EB', backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  xpBonusContainer: { backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  xpBonusText: { fontSize: 12, fontWeight: '800', color: '#10B981' },
-  achievementCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 12, borderRadius: 20, borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 20 },
-  achievementIconBox: { width: 44, height: 44, backgroundColor: '#FEF3C7', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  achievementInfo: { flex: 1, marginLeft: 12 },
-  achievementTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
-  achievementSub: { fontSize: 12, color: '#64748B' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.8)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, maxHeight: '80%' },
+  questXpTag: { fontSize: 11, fontWeight: '800', color: '#2563EB', backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  xpBonusContainer: { backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  xpBonusText: { fontSize: 11, fontWeight: '800', color: '#059669' },
+  achievementPrompt: { flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 20 },
+  achievementIconBox: { width: 44, height: 44, backgroundColor: '#FEF3C7', borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  achievementTitle: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
+  achievementSub: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(15, 23, 42, 0.8)', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    padding: 20 
+  },
+  modalContent: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 32, 
+    padding: 24, 
+    width: '100%', 
+    maxWidth: 400, 
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20 
+  },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   modalTitle: { fontSize: 24, fontWeight: '900', color: '#0F172A' },
-  badgeList: { gap: 16, paddingBottom: 20 },
-  badgeItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9' },
-  badgeLocked: { opacity: 0.6 },
+  badgeList: { gap: 12, paddingBottom: 20 },
+  badgeItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 24, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9' },
+  badgeLocked: { opacity: 0.5 },
   badgeIconCircle: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
   badgeName: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
   badgeDesc: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  closeBtn: { backgroundColor: '#1E3A8A', padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 10 },
+  closeBtn: { backgroundColor: '#1E3A8A', padding: 18, borderRadius: 20, alignItems: 'center', marginTop: 10 },
   closeBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  intensityCard: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#F8FAFC', borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  intensityIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  intensityTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
+  intensityDesc: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  workoutBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EFF6FF', padding: 12, borderRadius: 12, marginBottom: 16 },
+  workoutBannerText: { fontSize: 14, fontWeight: '700', color: '#1E3A8A' },
+  exerciseList: { gap: 10, paddingBottom: 20 },
+  exerciseItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9' },
+  exerciseIndexBox: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  exerciseIndex: { fontSize: 12, fontWeight: '900', color: '#1E3A8A' },
+  exerciseName: { flex: 1, fontSize: 14, fontWeight: '700', color: '#334155' },
+  completeBtn: { backgroundColor: '#059669', padding: 20, borderRadius: 24, alignItems: 'center', marginTop: 10, shadowColor: '#059669', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
+  completeBtnText: { color: '#FFF', fontWeight: '900', fontSize: 16, letterSpacing: 0.5 },
 });
