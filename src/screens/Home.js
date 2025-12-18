@@ -1,30 +1,99 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, 
-  TouchableOpacity, Modal, Pressable 
+  TouchableOpacity, Modal, Animated, Dimensions, Image 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  Target, Flame, Trophy, 
-  ChevronRight, Award, Activity, X,
-  CheckCircle2, Quote as QuoteIcon,
-  Zap, Dumbbell, Timer
+  Target, Flame, Trophy, ChevronRight, Award, Activity, X,
+  CheckCircle2, Quote as QuoteIcon, Zap, Dumbbell, AlertCircle,
+  Utensils, Shield, Crown, Droplets, Beef, Wheat
 } from 'lucide-react-native';
 
 import { 
-  updateUserStatsInDB, 
-  saveQuestCompletion, 
-  getTodaysCompletedQuests,
-  getWorkoutsForToday,
-  logWorkout
+  updateUserStatsInDB, saveQuestCompletion, getTodaysCompletedQuests,
+  getWorkoutsForToday, getTodayTotalCalories, getMealsForToday, getWorkoutStreak
 } from '../database/database';
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// --- ASSET MAPPING ---
+// Using ../../ to go from src/screens/ to the root assets folder
+const EXERCISE_GIFS = {
+  'AIR BIKE': require('../../assets/FITNESS APP/AIR BIKE.gif'),
+  'BRIDGE': require('../../assets/FITNESS APP/BRIDGE.gif'),
+  'BURPEES': require('../../assets/FITNESS APP/BURPEES.gif'),
+  'JUMPING JACKS': require('../../assets/FITNESS APP/JUMPING JACKS.gif'),
+  'LEG RAISE': require('../../assets/FITNESS APP/LEG RAISE.gif'),
+  'LUNGES': require('../../assets/FITNESS APP/LUNGES.gif'),
+  'MOUNTAIN CLIMBER': require('../../assets/FITNESS APP/MOUNTAIN CLIMBER.gif'),
+  'PLANK WITH LEG RAISE': require('../../assets/FITNESS APP/PLANK WITH LEG RAISE.gif'),
+  'PUSH UPS': require('../../assets/FITNESS APP/PUSH UPS.gif'),
+  'RUNNING IN PLACE': require('../../assets/FITNESS APP/RUNNING IN PLACE.gif'),
+  'SIDE LEG RAISE': require('../../assets/FITNESS APP/SIDE LEG RAISE.gif'),
+  'SIDE LUNGES': require('../../assets/FITNESS APP/SIDE LUNGES.gif'),
+  'SIT UPS': require('../../assets/FITNESS APP/SIT UPS.gif'),
+  'SQUATS': require('../../assets/FITNESS APP/SQUATS.gif'),
+  'SUPERMAN': require('../../assets/FITNESS APP/SUPERMAN.gif'),
+  'WALL SIT': require('../../assets/FITNESS APP/WALL SIT.gif'),
+};
+
+const HERO_RANKS = {
+  1: "Novice Recruit", 2: "Aspiring Hero", 3: "Street Guard", 4: "Local Legend",
+  5: "Rising Star", 6: "Elite Operative", 7: "Vigilante", 8: "Shield Bearer",
+  9: "Justice Bringer", 10: "Shadow Striker", 11: "Titan Initiate", 12: "Iron Will",
+  13: "Master Combatant", 14: "Apex Warrior", 15: "Grand Protector", 16: "Mythic Force",
+  17: "God-Tier Athlete", 18: "Eternal Champion", 19: "Universal Defender", 20: "Supreme Overlord"
+};
+
+const RANK_COLORS = { low: '#94A3B8', mid: '#6366F1', high: '#F59E0B', max: '#EF4444' };
+
+const ActionModal = ({ visible, title, message, type = 'success', onClose }) => {
+  const themes = {
+    success: { bg: '#DCFCE7', icon: '#10B981', btn: '#059669', color: '#064E3B' },
+    info: { bg: '#DBEAFE', icon: '#3B82F6', btn: '#1E3A8A', color: '#1E3A8A' },
+    warning: { bg: '#FEF3C7', icon: '#F59E0B', btn: '#D97706', color: '#78350F' }
+  };
+  const theme = themes[type];
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scale, { toValue: 1, friction: 8, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true })
+      ]).start();
+    }
+  }, [visible]);
+
+  const handleClose = () => {
+    Animated.parallel([
+      Animated.timing(scale, { toValue: 0.8, duration: 200, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true })
+    ]).start(onClose);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="none">
+      <View style={styles.modalOverlay}>
+        <Animated.View style={[styles.modalContent, { opacity, transform: [{ scale }] }]}>
+          <View style={[styles.alertIconWrapper, { backgroundColor: theme.bg }]}>
+            {type === 'success' ? <Trophy color={theme.icon} size={40} /> : <AlertCircle color={theme.icon} size={40} />}
+          </View>
+          <Text style={[styles.modalTitle, { color: theme.color }]}>{title}</Text>
+          <Text style={styles.alertMessage}>{message}</Text>
+          <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.btn, marginTop: 10 }]} onPress={handleClose}>
+            <Text style={styles.closeBtnText}>CONTINUE</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
 const StatBox = ({ icon, value, label, sub, onPress, style }) => (
-  <TouchableOpacity 
-    style={[styles.cardBase, styles.statBox, style]} 
-    onPress={onPress}
-    disabled={!onPress}
-  >
+  <TouchableOpacity style={[styles.cardBase, styles.statBox, style]} onPress={onPress} disabled={!onPress}>
     <View style={styles.statTopRow}>
       <View style={styles.statIconWrapper}>{icon}</View>
       <Text style={styles.statValue}>{value}</Text>
@@ -39,23 +108,22 @@ const StatBox = ({ icon, value, label, sub, onPress, style }) => (
 export default function Home({ user: initialUser, onWorkoutStart }) {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+  const [showNutritionModal, setShowNutritionModal] = useState(false);
   const [generatedWorkout, setGeneratedWorkout] = useState(null);
   const [user, setUser] = useState(initialUser);
   const [quests, setQuests] = useState([]);
   const [dailyQuote, setDailyQuote] = useState({ text: '', author: '' });
   const [todayWorkouts, setTodayWorkouts] = useState([]);
+  const [caloriesConsumed, setCaloriesConsumed] = useState(0);
+  const [todayMeals, setTodayMeals] = useState([]);
+  const [streak, setStreak] = useState(0);
+  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'success' });
 
-  const intensities = [
-    { id: 'Low', title: 'Light', desc: 'Focus on mobility and steady movement.', color: '#10B981', xp: 15 },
-    { id: 'Medium', title: 'Moderate', desc: 'Balanced cardio and strength routine.', color: '#6366F1', xp: 30 },
-    { id: 'High', title: 'Intense', desc: 'High-energy HIIT and heavy lifting.', color: '#EF4444', xp: 50 },
-  ];
-
-  const exercisePool = {
-    Low: ["Walking (5 mins)"],
-    Medium: ["Bodyweight Squats", "Standard Pushups", "Plank (60s)", "Lunges", "Mountain Climbers", "Jumping Jacks", "Dumbbell Press", "Bicep Curls", "Bicycle Crunches", "Cossack Squats"],
-    High: ["Burpees (15 reps)", "Thrusters", "Sprints (100m)", "Jump Squats", "Diamond Pushups", "Box Jumps", "Pull Ups", "V-Ups", "Battle Ropes", "Clean & Press"]
-  };
+  const nutritionAnim = useRef(new Animated.Value(0)).current;
+  const workoutAnim = useRef(new Animated.Value(0)).current;
+  const badgeAnim = useRef(new Animated.Value(0)).current;
+  const xpPulse = useRef(new Animated.Value(1)).current;
+  const xpOpacity = useRef(new Animated.Value(0)).current;
 
   const quotesPool = [
     { text: "Fitness is the ultimate form of honesty. You cannot cheat the grind.", author: "Daily Wisdom" },
@@ -68,100 +136,126 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
   useEffect(() => {
     const randomQuote = quotesPool[Math.floor(Math.random() * quotesPool.length)];
     setDailyQuote(randomQuote);
-
     const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     const questPool = {
-      Monday: [
-        { id: 'q1', title: "Drink 2L of water", xp: 20 },
-        { id: 'q2', title: "Morning Stretch", xp: 15 },
-        { id: 'q3', title: "Log Breakfast", xp: 15 }
-      ],
-      Tuesday: [
-        { id: 't1', title: "Walk 5,000 steps", xp: 25 },
-        { id: 't2', title: "No Sugary Drinks", xp: 15 },
-        { id: 't3', title: "10 Pushups", xp: 10 }
-      ],
-      default: [
-        { id: 'd1', title: "Complete HIIT Session", xp: 30 },
-        { id: 'd2', title: "Log Weight", xp: 10 },
-        { id: 'd3', title: "Drink 8 glasses of water", xp: 10 }
-      ]
+      Monday: [{ id: 'q1', title: "Drink 2L of water", xp: 20 }, { id: 'q2', title: "Morning Stretch", xp: 15 }, { id: 'q3', title: "Log Breakfast", xp: 15 }],
+      Tuesday: [{ id: 't1', title: "Walk 5,000 steps", xp: 25 }, { id: 't2', title: "No Sugary Drinks", xp: 15 }, { id: 't3', title: "10 Pushups", xp: 10 }],
+      default: [{ id: 'd1', title: "Complete HIIT Session", xp: 30 }, { id: 'd2', title: "Log Weight", xp: 10 }, { id: 'd3', title: "Drink 8 glasses of water", xp: 10 }]
     };
-
     const dailyPool = questPool[todayName] || questPool.default;
     const completedIds = getTodaysCompletedQuests(user.id);
-    const workouts = getWorkoutsForToday(user.id);
-    
-    setTodayWorkouts(workouts);
-    setQuests(dailyPool.map(q => ({
-      ...q,
-      completed: completedIds.includes(q.id)
-    })));
+    setTodayWorkouts(getWorkoutsForToday(user.id));
+    setCaloriesConsumed(getTodayTotalCalories(user.id));
+    setTodayMeals(getMealsForToday(user.id));
+    setStreak(getWorkoutStreak(user.id));
+    setQuests(dailyPool.map(q => ({ ...q, completed: completedIds.includes(q.id) })));
   }, [user.id]);
+
+  const openModal = (setter, animValue) => {
+    setter(true);
+    Animated.spring(animValue, { toValue: 1, friction: 8, useNativeDriver: true }).start();
+  };
+
+  const closeModal = (setter, animValue) => {
+    Animated.timing(animValue, { toValue: 0.7, duration: 200, useNativeDriver: true }).start(() => {
+      setter(false);
+      animValue.setValue(0);
+    });
+  };
+
+  const intensities = [
+    { id: 'Low', title: 'Light', desc: 'Focus on mobility and steady movement.', color: '#10B981', xp: 15 },
+    { id: 'Medium', title: 'Moderate', desc: 'Balanced cardio and strength routine.', color: '#6366F1', xp: 30 },
+    { id: 'High', title: 'Intense', desc: 'High-energy HIIT and heavy lifting.', color: '#EF4444', xp: 50 },
+  ];
+
+  const exercisePool = {
+    Low: ["BRIDGE", "LEG RAISE", "SIDE LEG RAISE", "WALL SIT"],
+    Medium: ["SQUATS", "SIT UPS", "LUNGES", "PUSH UPS", "SIDE LUNGES", "AIR BIKE"],
+    High: ["BURPEES", "JUMPING JACKS", "MOUNTAIN CLIMBER", "RUNNING IN PLACE", "PLANK WITH LEG RAISE", "SUPERMAN"]
+  };
 
   const currentXp = user?.xp || 0;
   const maxXp = 100;
   const progressPercent = Math.min((currentXp / maxXp) * 100, 100);
 
+  const totalMacros = todayMeals.reduce((acc, meal) => ({
+    p: acc.p + (Number(meal.protein) || 0),
+    c: acc.c + (Number(meal.carbs) || 0),
+    f: acc.f + (Number(meal.fat) || 0)
+  }), { p: 0, c: 0, f: 0 });
+
+  const triggerXpAnimation = () => {
+    xpOpacity.setValue(1);
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(xpPulse, { toValue: 1.05, duration: 150, useNativeDriver: true }),
+        Animated.timing(xpPulse, { toValue: 1, duration: 150, useNativeDriver: true }),
+      ]),
+      Animated.timing(xpOpacity, { toValue: 0, duration: 800, delay: 200, useNativeDriver: true })
+    ]).start();
+  };
+
   const handleGenerateWorkout = (level) => {
-    const workoutList = exercisePool[level.id];
-    setGeneratedWorkout({
-      level: level.title,
-      exercises: workoutList,
-      xp: level.xp
-    });
+    const selectedNames = exercisePool[level.id];
+    const exerciseData = selectedNames.map(name => ({
+      name: name,
+      gif: EXERCISE_GIFS[name]
+    }));
+    setGeneratedWorkout({ level: level.title, exercises: exerciseData, xp: level.xp });
   };
 
   const handleCompleteWorkout = () => {
     if (!generatedWorkout) return;
-
-    // Redundant log removed here to prevent double sessions.
-    // The workout is now logged only once within WorkoutScreen.js.
-
     if (onWorkoutStart) {
-      onWorkoutStart({
-        level: generatedWorkout.level,
-        exercises: generatedWorkout.exercises,
-        xp: generatedWorkout.xp,
-        intensity: generatedWorkout.level 
-      });
+      onWorkoutStart({ ...generatedWorkout, intensity: generatedWorkout.level });
     }
-
-    setShowWorkoutModal(false);
+    closeModal(setShowWorkoutModal, workoutAnim);
     setGeneratedWorkout(null);
   };
 
   const handleQuestToggle = (questId, questXp) => {
     const isAlreadyDone = quests.find(q => q.id === questId)?.completed;
     if (isAlreadyDone) return;
-
+    triggerXpAnimation();
     let newXp = currentXp + questXp;
     let newLevel = user.level || 1;
-
-    if (newXp >= maxXp) {
+    let leveledUp = false;
+    if (newXp >= maxXp && newLevel < 20) {
       newLevel += 1;
       newXp = newXp - maxXp;
+      leveledUp = true;
     }
-
     updateUserStatsInDB(user.id, newXp, newLevel);
     saveQuestCompletion(user.id, questId);
     setUser(prev => ({ ...prev, xp: newXp, level: newLevel }));
     setQuests(prev => prev.map(q => q.id === questId ? { ...q, completed: true } : q));
+    if (leveledUp) {
+      setAlertConfig({ visible: true, title: "RANK ASCENSION!", message: `Rank achieved: ${HERO_RANKS[newLevel]}. Welcome to Lvl ${newLevel}!`, type: 'success' });
+    }
   };
 
-  const hasEarlyBirdWorkout = todayWorkouts.some(w => {
-    const date = new Date(w.timestamp);
-    return date.getHours() < 8;
+  const levelBadges = Object.keys(HERO_RANKS).map(lvl => {
+    const levelInt = parseInt(lvl);
+    return {
+      id: `lvl-${lvl}`,
+      title: HERO_RANKS[lvl],
+      desc: `Reached Level ${lvl}`,
+      earned: user.level >= levelInt,
+      color: levelInt > 15 ? RANK_COLORS.max : levelInt > 10 ? RANK_COLORS.high : levelInt > 5 ? RANK_COLORS.mid : RANK_COLORS.low,
+      isLevelBadge: true
+    };
   });
 
-  const allBadges = [
-    { id: 1, title: 'Welcome Hero', desc: 'Account created', earned: true, color: '#10B981' },
-    { id: 2, title: 'Early Bird', desc: 'Workout before 8 AM', earned: hasEarlyBirdWorkout, color: '#F59E0B' },
-    { id: 3, title: 'Streak Master', desc: '7 days in a row', earned: user?.streak >= 7, color: '#6366F1' },
-  ];
+  const allBadges = [{ id: 'welcome', title: 'Hero Origin', desc: 'Account Created', earned: true, color: '#10B981' }, ...levelBadges];
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <ActionModal 
+        visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} type={alertConfig.type} 
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} 
+      />
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
@@ -170,181 +264,165 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
           </View>
           <View style={styles.streakBadge}>
             <Flame color="#F97316" size={18} fill="#F97316" />
-            <Text style={styles.streakText}>{user?.streak || 0}</Text>
+            <Text style={styles.streakText}>{streak}</Text>
           </View>
         </View>
 
-        <View style={styles.levelCard}>
+        <Animated.View style={[styles.levelCard, { transform: [{ scale: xpPulse }] }]}>
+          <Animated.View style={[styles.xpGlow, { opacity: xpOpacity }]} />
           <View style={styles.levelHeader}>
             <View>
-              <Text style={styles.levelSub}>CURRENT RANK</Text>
-              <Text style={styles.levelTitle}>{user.level < 5 ? 'Novice Hero' : 'Rising Star'}</Text>
+              <Text style={styles.levelSub}>HERO RANK</Text>
+              <Text style={styles.levelTitle}>{HERO_RANKS[user.level] || "Legend"}</Text>
             </View>
-            <View style={styles.xpBadge}>
-              <Text style={styles.xpBadgeText}>LVL {user.level}</Text>
-            </View>
+            <View style={styles.xpBadge}><Text style={styles.xpBadgeText}>LVL {user.level}</Text></View>
           </View>
           <View style={styles.progressContainer}>
-            <View style={styles.progressBarBackground}>
-              <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-            </View>
+            <View style={styles.progressBarBackground}><View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} /></View>
             <View style={styles.progressLabelRow}>
                <Text style={styles.progressText}>{currentXp}/{maxXp} XP</Text>
-               <Text style={styles.progressText}>Next: Lvl {user.level + 1}</Text>
+               <Text style={styles.progressText}>{user.level < 20 ? `Next: Lvl ${user.level + 1}` : 'MAX LEVEL'}</Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
         <View style={[styles.cardBase, styles.quoteCard]}>
-          <View style={styles.quoteTopRow}>
-            <QuoteIcon color="#6366F1" size={20} fill="#6366F120" />
-            <Text style={styles.quoteTag}>DAILY FOCUS</Text>
-          </View>
+          <View style={styles.quoteTopRow}><QuoteIcon color="#6366F1" size={20} fill="#6366F120" /><Text style={styles.quoteTag}>DAILY FOCUS</Text></View>
           <Text style={styles.quoteText}>"{dailyQuote.text}"</Text>
           <Text style={styles.quoteAuthor}>— {dailyQuote.author}</Text>
         </View>
 
         <View style={styles.statsGrid}>
-          <StatBox 
-            icon={<Target color="#1E40AF" size={18} />} 
-            value={todayWorkouts.length} 
-            label="Workouts" 
-            sub="Today" 
-            onPress={() => setShowWorkoutModal(true)}
-          />
-          <StatBox 
-            icon={<Activity color="#059669" size={18} />} 
-            value={user?.caloriesLogged || "0"} 
-            label="Calories" 
-            sub="Burned" 
-          />
-          <StatBox 
-            icon={<Trophy color="#D97706" size={18} />} 
-            value={allBadges.filter(b => b.earned).length} 
-            label="Badges" 
-            sub="Collected" 
-            onPress={() => setShowAchievements(true)}
-            style={styles.badgeStatBox}
-          />
+          <StatBox icon={<Target color="#1E40AF" size={18} />} value={todayWorkouts.length} label="Workouts" sub="Today" onPress={() => openModal(setShowWorkoutModal, workoutAnim)} />
+          <StatBox icon={<Activity color="#059669" size={18} />} value={caloriesConsumed || 0} label="Calories" sub="Consumed" onPress={() => openModal(setShowNutritionModal, nutritionAnim)} />
+          <StatBox icon={<Trophy color="#D97706" size={18} />} value={allBadges.filter(b => b.earned).length} label="Badges" sub="Collected" onPress={() => openModal(setShowAchievements, badgeAnim)} style={styles.badgeStatBox} />
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Daily Quests</Text>
-          <View style={styles.xpBonusContainer}><Text style={styles.xpBonusText}>Earn XP</Text></View>
-        </View>
-        
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Daily Quests</Text></View>
         <View style={[styles.cardBase, styles.questCard]}>
           {quests.map((quest) => (
-            <TouchableOpacity 
-              key={quest.id} 
-              style={styles.questItem} 
-              onPress={() => handleQuestToggle(quest.id, quest.xp)}
-              disabled={quest.completed}
-            >
-              <CheckCircle2 
-                color={quest.completed ? '#10B981' : '#CBD5E1'} 
-                size={22} 
-                fill={quest.completed ? '#10B98120' : 'transparent'} 
-              />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.questText, quest.completed && styles.questTextDone]}>{quest.title}</Text>
-              </View>
+            <TouchableOpacity key={quest.id} style={styles.questItem} onPress={() => handleQuestToggle(quest.id, quest.xp)} disabled={quest.completed}>
+              <CheckCircle2 color={quest.completed ? '#10B981' : '#CBD5E1'} size={22} fill={quest.completed ? '#10B98120' : 'transparent'} />
+              <View style={{ flex: 1, marginLeft: 12 }}><Text style={[styles.questText, quest.completed && styles.questTextDone]}>{quest.title}</Text></View>
               {!quest.completed && <Text style={styles.questXpTag}>+{quest.xp} XP</Text>}
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={[styles.cardBase, styles.achievementPrompt]} onPress={() => setShowAchievements(true)}>
+        <TouchableOpacity style={[styles.cardBase, styles.achievementPrompt]} onPress={() => openModal(setShowAchievements, badgeAnim)}>
           <View style={styles.achievementIconBox}><Award color="#F59E0B" size={22} /></View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.achievementTitle}>View Hall of Fame</Text>
-            <Text style={styles.achievementSub}>See all your earned milestones</Text>
+            <Text style={styles.achievementSub}>Level {user.level} rank rewards active</Text>
           </View>
           <ChevronRight color="#CBD5E1" size={20} />
         </TouchableOpacity>
-
       </ScrollView>
 
-      <Modal visible={showWorkoutModal} animationType="fade" transparent={true}>
+      {/* --- NUTRITION MODAL --- */}
+      <Modal visible={showNutritionModal} transparent animationType="none">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <Animated.View style={[styles.modalContent, styles.polishedModal, { height: '85%', opacity: nutritionAnim, transform: [{ scale: nutritionAnim }] }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{generatedWorkout ? 'Perform Workout' : 'Start Workout'}</Text>
-              <TouchableOpacity onPress={() => { setShowWorkoutModal(false); setGeneratedWorkout(null); }}>
-                <X color="#0F172A" size={24} />
-              </TouchableOpacity>
+              <View><Text style={styles.modalTitle}>Daily Fuel</Text><Text style={styles.modalSubHeader}>Metabolic Log</Text></View>
+              <TouchableOpacity onPress={() => closeModal(setShowNutritionModal, nutritionAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
             </View>
-
-            {!generatedWorkout ? (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {intensities.map((item) => (
-                  <TouchableOpacity 
-                    key={item.id} 
-                    style={styles.intensityCard}
-                    onPress={() => handleGenerateWorkout(item)}
-                  >
-                    <View style={[styles.intensityIcon, { backgroundColor: item.color + '15' }]}>
-                      <Zap color={item.color} size={24} />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 15 }}>
-                      <Text style={styles.intensityTitle}>{item.title}</Text>
-                      <Text style={styles.intensityDesc}>{item.desc}</Text>
-                    </View>
-                    <ChevronRight color="#CBD5E1" size={20} />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={{ flexShrink: 1 }}>
-                <View style={styles.workoutBanner}>
-                  <Dumbbell color="#1E3A8A" size={20} />
-                  <Text style={styles.workoutBannerText}>{generatedWorkout.level} Routine • 10 Steps</Text>
-                </View>
-                <ScrollView contentContainerStyle={styles.exerciseList} showsVerticalScrollIndicator={false}>
-                  {generatedWorkout.exercises.map((ex, idx) => (
-                    <View key={idx} style={styles.exerciseItem}>
-                      <View style={styles.exerciseIndexBox}>
-                        <Text style={styles.exerciseIndex}>{idx + 1}</Text>
+            <View style={styles.macroDashboard}>
+                <View style={styles.macroStat}><Beef color="#EF4444" size={18} /><Text style={styles.macroValue}>{totalMacros.p}g</Text><Text style={styles.macroLabel}>Protein</Text></View>
+                <View style={styles.macroDivider} />
+                <View style={styles.macroStat}><Wheat color="#F59E0B" size={18} /><Text style={styles.macroValue}>{totalMacros.c}g</Text><Text style={styles.macroLabel}>Carbs</Text></View>
+                <View style={styles.macroDivider} />
+                <View style={styles.macroStat}><Droplets color="#3B82F6" size={18} /><Text style={styles.macroValue}>{totalMacros.f}g</Text><Text style={styles.macroLabel}>Fats</Text></View>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>
+              {todayMeals.length === 0 ? (
+                <View style={styles.emptyContainer}><Utensils color="#CBD5E1" size={48} /><Text style={styles.emptyText}>No fuel logged today.</Text></View>
+              ) : (
+                todayMeals.map((meal, index) => (
+                  <View key={index} style={styles.mealCardPro}>
+                    <View style={styles.mealInfoPro}>
+                      <Text style={styles.mealNamePro}>{meal.foodName}</Text>
+                      <View style={styles.miniMacroRow}>
+                         <View style={[styles.miniBadge, { backgroundColor: '#FEE2E2' }]}><Text style={[styles.miniBadgeText, { color: '#B91C1C' }]}>P {meal.protein}g</Text></View>
+                         <View style={[styles.miniBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.miniBadgeText, { color: '#B45309' }]}>C {meal.carbs}g</Text></View>
+                         <View style={[styles.miniBadge, { backgroundColor: '#DBEAFE' }]}><Text style={[styles.miniBadgeText, { color: '#1D4ED8' }]}>F {meal.fat}g</Text></View>
                       </View>
-                      <Text style={styles.exerciseName}>{ex}</Text>
-                      <Timer color="#94A3B8" size={16} />
                     </View>
-                  ))}
-                </ScrollView>
-                <TouchableOpacity style={styles.completeBtn} onPress={handleCompleteWorkout}>
-                  <Text style={styles.completeBtnText}>Start Workout</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+                    <View style={styles.mealCalContainerPro}><Text style={styles.mealCalValuePro}>{meal.calories}</Text><Text style={styles.mealCalUnitPro}>kcal</Text></View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            <View style={styles.modalFooter}><TouchableOpacity style={styles.closeBtn} onPress={() => closeModal(setShowNutritionModal, nutritionAnim)}><Text style={styles.closeBtnText}>RETURN TO LAB</Text></TouchableOpacity></View>
+          </Animated.View>
         </View>
       </Modal>
 
-      <Modal visible={showAchievements} animationType="fade" transparent={true}>
+      {/* --- MISSION MODAL --- */}
+      <Modal visible={showWorkoutModal} transparent animationType="none">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <Animated.View style={[styles.modalContent, styles.polishedModal, { height: '80%', opacity: workoutAnim, transform: [{ scale: workoutAnim }] }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Your Badges</Text>
-              <TouchableOpacity onPress={() => setShowAchievements(false)}><X color="#0F172A" size={24} /></TouchableOpacity>
+              <View><Text style={styles.modalTitle}>{generatedWorkout ? 'Mission File' : 'Mission Selection'}</Text></View>
+              <TouchableOpacity onPress={() => closeModal(setShowWorkoutModal, workoutAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
             </View>
+            <View style={{ flex: 1, width: '100%' }}>
+              {!generatedWorkout ? (
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 24 }}>
+                  {intensities.map((item) => (
+                    <TouchableOpacity key={item.id} style={styles.intensityCard} onPress={() => handleGenerateWorkout(item)}>
+                      <View style={[styles.intensityIcon, { backgroundColor: item.color + '15' }]}><Zap color={item.color} size={24} /></View>
+                      <View style={{ flex: 1, marginLeft: 15 }}><Text style={styles.intensityTitle}>{item.title}</Text><Text style={styles.intensityDesc}>{item.desc}</Text></View>
+                      <ChevronRight color="#CBD5E1" size={20} />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20 }}>
+                    <View style={styles.workoutBanner}><Dumbbell color="#1E3A8A" size={20} /><Text style={styles.workoutBannerText}>Mission XP: +{generatedWorkout.xp}</Text></View>
+                    {generatedWorkout.exercises.map((ex, idx) => (
+                      <View key={idx} style={styles.exerciseItem}>
+                        <View style={styles.exerciseIndexBox}><Text style={styles.exerciseIndex}>{idx + 1}</Text></View>
+                        <View style={{ flex: 1 }}>
+                          {/* FIXED: Targeting ex.name instead of the entire object */}
+                          <Text style={styles.exerciseName}>{ex.name}</Text>
+                          {/* GIF Preview */}
+                          <Image 
+                             source={ex.gif} 
+                             style={{ width: 80, height: 80, marginTop: 10, borderRadius: 12 }} 
+                             resizeMode="contain"
+                          />
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <View style={styles.modalFooter}><TouchableOpacity style={styles.completeBtn} onPress={handleCompleteWorkout}><Text style={styles.completeBtnText}>ENGAGE PROTOCOL</Text></TouchableOpacity></View>
+                </View>
+              )}
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* --- HALL OF FAME MODAL --- */}
+      <Modal visible={showAchievements} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.modalContent, { height: '85%', opacity: badgeAnim, transform: [{ scale: badgeAnim }] }]}>
+            <View style={styles.modalHeader}><Text style={styles.modalTitle}>Hall of Fame</Text><TouchableOpacity onPress={() => closeModal(setShowAchievements, badgeAnim)}><X color="#0F172A" size={24} /></TouchableOpacity></View>
             <ScrollView contentContainerStyle={styles.badgeList} showsVerticalScrollIndicator={false}>
               {allBadges.map((badge) => (
                 <View key={badge.id} style={[styles.badgeItem, !badge.earned && styles.badgeLocked]}>
                   <View style={[styles.badgeIconCircle, { backgroundColor: badge.earned ? badge.color + '15' : '#F1F5F9' }]}>
-                    <Award color={badge.earned ? badge.color : '#94A3B8'} size={28} />
+                    {badge.id === 'lvl-20' ? <Crown color={badge.earned ? badge.color : '#94A3B8'} size={28} /> : <Shield color={badge.earned ? badge.color : '#94A3B8'} size={28} />}
                   </View>
-                  <View style={{ flex: 1, marginLeft: 15 }}>
-                    <Text style={[styles.badgeName, !badge.earned && { color: '#94A3B8' }]}>{badge.title}</Text>
-                    <Text style={styles.badgeDesc}>{badge.desc}</Text>
-                  </View>
-                  {badge.earned && <Trophy color="#F59E0B" size={16} />}
+                  <View style={{ flex: 1, marginLeft: 15 }}><Text style={[styles.badgeName, !badge.earned && { color: '#94A3B8' }]}>{badge.title}</Text><Text style={styles.badgeDesc}>{badge.desc}</Text></View>
+                  {badge.earned && <CheckCircle2 color="#10B981" size={18} />}
                 </View>
               ))}
             </ScrollView>
-            <Pressable style={styles.closeBtn} onPress={() => setShowAchievements(false)}>
-              <Text style={styles.closeBtnText}>Continue Your Journey</Text>
-            </Pressable>
-          </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => closeModal(setShowAchievements, badgeAnim)}><Text style={styles.closeBtnText}>CLOSE HALL</Text></TouchableOpacity>
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -354,25 +432,16 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   scrollContent: { padding: 20, paddingBottom: 110 },
-  cardBase: {
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  cardBase: { backgroundColor: '#FFF', borderRadius: 24, borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  greeting: { fontSize: 13, color: '#64748B', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  userName: { fontSize: 32, fontWeight: '900', color: '#0F172A', marginTop: -2 },
+  greeting: { fontSize: 13, color: '#64748B', fontWeight: '600', textTransform: 'uppercase' },
+  userName: { fontSize: 32, fontWeight: '900', color: '#0F172A' },
   streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0' },
   streakText: { marginLeft: 6, fontWeight: '800', fontSize: 16, color: '#0F172A' },
-  levelCard: { backgroundColor: '#1E3A8A', borderRadius: 28, padding: 24, marginBottom: 16 },
+  levelCard: { backgroundColor: '#1E3A8A', borderRadius: 28, padding: 24, marginBottom: 16, overflow: 'hidden' },
+  xpGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: '#60A5FA', opacity: 0 },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  levelSub: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  levelSub: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '800' },
   levelTitle: { color: '#FFF', fontSize: 24, fontWeight: '900' },
   xpBadge: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   xpBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
@@ -383,8 +452,8 @@ const styles = StyleSheet.create({
   progressText: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '700' },
   quoteCard: { padding: 20, marginBottom: 20, backgroundColor: '#F0F4FF' },
   quoteTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 },
-  quoteTag: { fontSize: 10, fontWeight: '800', color: '#6366F1', letterSpacing: 1 },
-  quoteText: { fontSize: 15, color: '#1E1B4B', lineHeight: 22, fontWeight: '600', fontStyle: 'italic' },
+  quoteTag: { fontSize: 10, fontWeight: '800', color: '#6366F1' },
+  quoteText: { fontSize: 15, color: '#1E1B4B', fontWeight: '600', fontStyle: 'italic' },
   quoteAuthor: { fontSize: 12, color: '#6366F1', fontWeight: '700', marginTop: 12 },
   statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   statBox: { flex: 1, padding: 14, minHeight: 110 },
@@ -395,60 +464,60 @@ const styles = StyleSheet.create({
   statTextWrapper: { marginTop: 'auto' },
   statLabel: { fontSize: 13, fontWeight: '700', color: '#334155' },
   statSubLabel: { fontSize: 10, fontWeight: '600', color: '#94A3B8' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionHeader: { marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
   questCard: { padding: 8, marginBottom: 20 },
   questItem: { flexDirection: 'row', alignItems: 'center', padding: 12, marginVertical: 2 },
   questText: { fontSize: 14, color: '#334155', fontWeight: '700' },
   questTextDone: { color: '#94A3B8', textDecorationLine: 'line-through' },
   questXpTag: { fontSize: 11, fontWeight: '800', color: '#2563EB', backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  xpBonusContainer: { backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  xpBonusText: { fontSize: 11, fontWeight: '800', color: '#059669' },
   achievementPrompt: { flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 20 },
   achievementIconBox: { width: 44, height: 44, backgroundColor: '#FEF3C7', borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   achievementTitle: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
   achievementSub: { fontSize: 12, color: '#64748B', fontWeight: '500' },
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(15, 23, 42, 0.8)', 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    padding: 20 
-  },
-  modalContent: { 
-    backgroundColor: '#FFF', 
-    borderRadius: 32, 
-    padding: 24, 
-    width: '100%', 
-    maxWidth: 400, 
-    maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 20 
-  },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { fontSize: 24, fontWeight: '900', color: '#0F172A' },
-  badgeList: { gap: 12, paddingBottom: 20 },
-  badgeItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 24, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9' },
-  badgeLocked: { opacity: 0.5 },
-  badgeIconCircle: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
-  badgeName: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
-  badgeDesc: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  closeBtn: { backgroundColor: '#1E3A8A', padding: 18, borderRadius: 20, alignItems: 'center', marginTop: 10 },
-  closeBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, width: '100%', maxWidth: 450, elevation: 20 },
+  polishedModal: { paddingHorizontal: 0 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingHorizontal: 24 },
+  modalTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A' },
+  modalSubHeader: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+  macroDashboard: { flexDirection: 'row', backgroundColor: '#F8FAFC', marginHorizontal: 24, padding: 16, borderRadius: 24, marginBottom: 24, borderWeight: 1, borderColor: '#F1F5F9', justifyContent: 'space-around' },
+  macroStat: { alignItems: 'center' },
+  macroValue: { fontSize: 16, fontWeight: '900', color: '#0F172A', marginTop: 4 },
+  macroLabel: { fontSize: 10, fontWeight: '700', color: '#64748B' },
+  macroDivider: { width: 1, height: '70%', backgroundColor: '#E2E8F0', alignSelf: 'center' },
+  mealCardPro: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 24, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  mealInfoPro: { flex: 1 },
+  mealNamePro: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
+  miniMacroRow: { flexDirection: 'row', gap: 6 },
+  miniBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  miniBadgeText: { fontSize: 10, fontWeight: '800' },
+  mealCalContainerPro: { alignItems: 'flex-end', marginLeft: 12 },
+  mealCalValuePro: { fontSize: 18, fontWeight: '900', color: '#059669' },
+  mealCalUnitPro: { fontSize: 10, fontWeight: '700', color: '#059669', marginTop: -2 },
   intensityCard: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#F8FAFC', borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9' },
   intensityIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   intensityTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
   intensityDesc: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  workoutBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EFF6FF', padding: 12, borderRadius: 12, marginBottom: 16 },
-  workoutBannerText: { fontSize: 14, fontWeight: '700', color: '#1E3A8A' },
-  exerciseList: { gap: 10, paddingBottom: 20 },
-  exerciseItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9' },
-  exerciseIndexBox: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#E2E8F0' },
-  exerciseIndex: { fontSize: 12, fontWeight: '900', color: '#1E3A8A' },
+  workoutBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EFF6FF', padding: 16, borderRadius: 16, marginBottom: 16 },
+  workoutBannerText: { fontSize: 13, fontWeight: '700', color: '#1E3A8A' },
+  exerciseItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 10 },
+  exerciseIndexBox: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  exerciseIndex: { fontSize: 11, fontWeight: '900', color: '#1E3A8A' },
   exerciseName: { flex: 1, fontSize: 14, fontWeight: '700', color: '#334155' },
-  completeBtn: { backgroundColor: '#059669', padding: 20, borderRadius: 24, alignItems: 'center', marginTop: 10, shadowColor: '#059669', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
-  completeBtnText: { color: '#FFF', fontWeight: '900', fontSize: 16, letterSpacing: 0.5 },
+  modalFooter: { borderTopWidth: 1, borderTopColor: '#F1F5F9', padding: 20, backgroundColor: '#FFF' },
+  completeBtn: { backgroundColor: '#059669', padding: 18, borderRadius: 20, alignItems: 'center' },
+  completeBtnText: { color: '#FFF', fontWeight: '900', fontSize: 16 },
+  closeBtn: { backgroundColor: '#1E3A8A', padding: 16, borderRadius: 16, alignItems: 'center' },
+  closeBtnText: { color: '#FFF', fontWeight: '800' },
+  badgeList: { paddingBottom: 20 },
+  badgeItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, backgroundColor: '#F8FAFC', marginBottom: 10, borderWidth: 1, borderColor: '#F1F5F9' },
+  badgeLocked: { opacity: 0.3 },
+  badgeIconCircle: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  badgeName: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
+  badgeDesc: { fontSize: 11, color: '#64748B' },
+  emptyContainer: { alignItems: 'center', paddingVertical: 40 },
+  emptyText: { color: '#94A3B8', fontWeight: '600', marginTop: 12 },
+  alertIconWrapper: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  alertMessage: { textAlign: 'center', color: '#64748B', lineHeight: 20 }
 });

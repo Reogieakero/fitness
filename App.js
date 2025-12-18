@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Button, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+// Database and Screen Imports
 import { initDatabase } from './src/database/database';
 import SignUp from './src/screens/SignUp';
 import Login from './src/screens/Login';
@@ -9,6 +10,8 @@ import Home from './src/screens/Home';
 import WorkoutScreen from './src/screens/WorkoutScreen';
 import WorkoutsScreen from './src/screens/WorkoutsScreen';
 import NutritionScreen from './src/screens/NutritionScreen'; 
+import StatsScreen from './src/screens/StatsScreen';
+import ProfileScreen from './src/screens/ProfileScreen'; // New Profile Screen
 import NavBar from './src/components/Navbar';
 
 export default function App() {
@@ -18,18 +21,24 @@ export default function App() {
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [activeWorkoutData, setActiveWorkoutData] = useState(null);
 
+  // Initialize SQLite Database on mount
   useEffect(() => {
     initDatabase();
   }, []);
 
+  /**
+   * Handles user data setup after successful authentication
+   */
   const handleLoginSuccess = (userFromDb) => {
     if (!userFromDb) return;
-    const fullName = userFromDb.username || 'Hero';
+    
+    // Extract first name for the "Hero" greeting in Home.js
+    const fullName = userFromDb.username || userFromDb.firstName || 'Hero';
     const firstName = fullName.trim().split(' ')[0];
 
     setUserData({
       id: userFromDb.id,
-      firstName: firstName,
+      firstName: firstName, 
       xp: userFromDb.xp || 0,
       level: userFromDb.level || 1,
       streak: userFromDb.streak || 0,
@@ -41,6 +50,9 @@ export default function App() {
     setCurrentScreen('MainApp');
   };
 
+  /**
+   * Resets app state for logout
+   */
   const handleLogout = () => {
     setUserData(null);
     setCurrentScreen('Login');
@@ -48,19 +60,29 @@ export default function App() {
     setIsWorkoutActive(false);
   };
 
+  /**
+   * Transitions to the active workout session overlay
+   */
   const startWorkoutSession = (workoutData) => {
     setActiveWorkoutData(workoutData);
     setIsWorkoutActive(true);
   };
 
+  // --- CONDITIONAL RENDERING ---
+
+  // 1. Auth Flow: Login
   if (currentScreen === 'Login') {
     return (
       <SafeAreaProvider>
-        <Login onSwitchToSignUp={() => setCurrentScreen('SignUp')} onLoginSuccess={handleLoginSuccess} />
+        <Login 
+          onSwitchToSignUp={() => setCurrentScreen('SignUp')} 
+          onLoginSuccess={handleLoginSuccess} 
+        />
       </SafeAreaProvider>
     );
   }
 
+  // 2. Auth Flow: Sign Up
   if (currentScreen === 'SignUp') {
     return (
       <SafeAreaProvider>
@@ -69,6 +91,7 @@ export default function App() {
     );
   }
 
+  // 3. Active Workout Overlay (Takes over the full screen)
   if (isWorkoutActive && activeWorkoutData) {
     return (
       <SafeAreaProvider>
@@ -85,8 +108,7 @@ export default function App() {
     );
   }
 
-  // --- LOADING GUARD ---
-  // If we are in MainApp but userData hasn't loaded, show a loader
+  // 4. Loading State
   if (!userData) {
     return (
       <View style={styles.centered}>
@@ -95,12 +117,17 @@ export default function App() {
     );
   }
 
+  // 5. Main Application Flow (With Bottom Navbar)
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
         <View style={styles.content}>
+          
           {activeTab === 'Home' && (
-            <Home user={userData} onWorkoutStart={startWorkoutSession} />
+            <Home 
+              user={userData} 
+              onWorkoutStart={startWorkoutSession} 
+            />
           )}
 
           {activeTab === 'Workouts' && (
@@ -111,14 +138,20 @@ export default function App() {
             <NutritionScreen userId={userData.id} />
           )}
 
-          {activeTab === 'Stats' && <View style={styles.placeholder} />}
+          {activeTab === 'Stats' && (
+            <StatsScreen userId={userData.id} />
+          )}
 
           {activeTab === 'Profile' && (
-            <View style={styles.profileContainer}>
-              <Button title="Logout" onPress={handleLogout} color="#EF4444" />
-            </View>
+            <ProfileScreen 
+              userId={userData.id} 
+              onLogout={handleLogout} 
+            />
           )}
+          
         </View>
+
+        {/* Persistent Navigation Bar */}
         <NavBar activeTab={activeTab} setActiveTab={setActiveTab} />
       </View>
     </SafeAreaProvider>
@@ -126,9 +159,17 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  placeholder: { flex: 1, backgroundColor: '#FFF' },
-  profileContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F8FAFC' 
+  },
+  content: { 
+    flex: 1 
+  },
+  centered: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC'
+  }
 });

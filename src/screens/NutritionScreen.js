@@ -1,44 +1,75 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, ActivityIndicator, Alert, Keyboard
+  TouchableOpacity, ActivityIndicator, Keyboard, Modal, Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  Apple, Utensils, Trash2, Brain, 
-  Plus, Info, Flame, Scale 
+  Trash2, Brain, Plus, Database, Flame, ShieldCheck, 
+  Edit3, X, History, ChevronLeft, AlertCircle, 
+  Utensils, Beef, Wheat, Droplets, Target
 } from 'lucide-react-native';
 
 import { 
   saveMealToDB, 
-  getMealsForToday, 
-  deleteMealFromDB 
+  getMealsByDate, 
+  deleteMealFromDB, 
+  getAllMealDates 
 } from '../database/database';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+const { width } = Dimensions.get('window');
+
+// --- CUSTOM COMPONENTS ---
+
+const CustomAlert = ({ visible, title, message, onClose }) => (
+  <Modal visible={visible} transparent animationType="fade">
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <View style={styles.alertIconWrapper}>
+          <AlertCircle color="#6366F1" size={40} />
+        </View>
+        <Text style={styles.modalTitle}>{title}</Text>
+        <Text style={styles.alertMessage}>{message}</Text>
+        <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+          <Text style={styles.closeBtnText}>CONTINUE</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+);
 
 export default function NutritionScreen({ userId }) {
   const [foodInput, setFoodInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [meals, setMeals] = useState([]);
-  const [dailyTotals, setDailyTotals] = useState({ cal: 0, pro: 0, carb: 0, fat: 0, fib: 0 });
+  const [dailyTotals, setDailyTotals] = useState({ cal: 0, pro: 0, carb: 0, fat: 0 });
+  const [showManual, setShowManual] = useState(false);
+  const [viewHistory, setViewHistory] = useState(false);
+  const [historyDates, setHistoryDates] = useState([]);
+  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '' });
+
+  const [manualData, setManualData] = useState({
+    foodName: '', calories: '', protein: '', carbs: '', fat: ''
+  });
+
+  const todayKey = new Date().toISOString().split('T')[0];
+  const displayDate = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', month: 'short', day: 'numeric' 
+  });
+
+  const TARGETS = { cal: 2500, pro: 160, carb: 250, fat: 70 };
 
   useEffect(() => {
-    if (userId) {
-      loadTodayData();
-    }
+    if (userId) loadData();
   }, [userId]);
 
-  const loadTodayData = () => {
+  const loadData = (dateKey = todayKey) => {
     if (!userId) return;
-    try {
-      const data = getMealsForToday(userId);
-      const safeData = data || [];
-      setMeals(safeData);
-      calculateTotals(safeData);
-    } catch (error) {
-      console.error("Load Error:", error);
-    }
+    const data = getMealsByDate(userId, dateKey) || [];
+    setMeals(data);
+    calculateTotals(data);
+    setHistoryDates(getAllMealDates(userId) || []);
   };
 
   const calculateTotals = (mealList) => {
@@ -46,70 +77,53 @@ export default function NutritionScreen({ userId }) {
       cal: acc.cal + (Number(m.calories) || 0),
       pro: acc.pro + (Number(m.protein) || 0),
       carb: acc.carb + (Number(m.carbs) || 0),
-      fat: acc.fat + (Number(m.fat) || 0),
-      fib: acc.fib + (Number(m.fiber) || 0)
-    }), { cal: 0, pro: 0, carb: 0, fat: 0, fib: 0 });
+      fat: acc.fat + (Number(m.fat) || 0)
+    }), { cal: 0, pro: 0, carb: 0, fat: 0 });
     setDailyTotals(totals);
   };
 
-  const analyzeFoodWithAI = async () => {
-    if (!foodInput.trim()) return;
-    if (!GEMINI_API_KEY) {
-      Alert.alert("Config Error", "API Key not found. Please restart Expo.");
+  const handleSave = (mealObj) => {
+    saveMealToDB(userId, { ...mealObj, date: todayKey });
+    loadData();
+  };
+
+  const handleManualSave = () => {
+    if (!manualData.foodName || !manualData.calories) {
+      setAlertConfig({ visible: true, title: "Incomplete Data", message: "Please provide a food name and calorie amount." });
       return;
     }
+    handleSave({
+      ...manualData,
+      grade: 'Manual',
+      recommendation: 'Manually logged.'
+    });
+    setManualData({ foodName: '', calories: '', protein: '', carbs: '', fat: '' });
+    setShowManual(false);
+    Keyboard.dismiss();
+  };
 
+  const analyzeFoodWithAI = async () => {
+    if (!foodInput.trim() || loading) return;
     setLoading(true);
     Keyboard.dismiss();
 
-    const prompt = `Act as a nutritionist. Analyze: "${foodInput}". 
-    Return ONLY a raw JSON object. Do not include markdown or backticks.
-    {
-      "foodName": "name", 
-      "calories": number, 
-      "protein": number, 
-      "carbs": number, 
-      "fat": number, 
-      "fiber": number, 
-      "grade": "A-F", 
-      "recommendation": "one short sentence"
-    }`;
-
     try {
-      // UPDATED URL: Using v1/models/gemini-1.5-flash
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { 
-            temperature: 0.1
-          }
+          contents: [{ parts: [{ text: `Analyze food: "${foodInput}". Return JSON: {"foodName": "string", "calories": number, "protein": number, "carbs": number, "fat": number, "grade": "A|B|C|D|F", "recommendation": "string"}` }] }]
         })
       });
 
       const data = await response.json();
-      
-      if (!response.ok) {
-        // Log the specific Google error to terminal
-        console.error("Google API Error:", data.error);
-        throw new Error(data.error?.message || "API Request Failed");
-      }
-
-      const textResponse = data.candidates[0].content.parts[0].text;
-      
-      // Safety: Strip any markdown code blocks if AI ignored the "raw" instruction
-      const cleanJson = textResponse.replace(/```json|```/g, '').trim();
+      const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
       const mealData = JSON.parse(cleanJson);
 
-      saveMealToDB(userId, mealData);
-      
+      handleSave(mealData);
       setFoodInput('');
-      loadTodayData();
-      Alert.alert("Success", `${mealData.foodName} added.`);
     } catch (error) {
-      console.error("AI Analysis Error:", error);
-      Alert.alert("Analysis Failed", "AI could not process this description. Check your console for details.");
+      setAlertConfig({ visible: true, title: "Analysis Failed", message: "Could not connect to the Lab. Please try manual entry." });
     } finally {
       setLoading(false);
     }
@@ -117,139 +131,212 @@ export default function NutritionScreen({ userId }) {
 
   const handleDelete = (id) => {
     deleteMealFromDB(id);
-    loadTodayData();
+    loadData();
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <CustomAlert 
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      />
+
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerSub}>{viewHistory ? "ARCHIVE" : "DAILY FUEL"}</Text>
+          <Text style={styles.headerTitle}>{viewHistory ? "Fuel History" : "Precision Lab"}</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.actionCircle} onPress={() => setViewHistory(!viewHistory)}>
+            {viewHistory ? <ChevronLeft color="#1E3A8A" size={20}/> : <History color="#1E3A8A" size={20} />}
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Nutrition Lab</Text>
-            <Text style={styles.headerSub}>Track your performance fuel</Text>
-          </View>
-          <View style={styles.aiBadge}>
-            <Brain color="#8B5CF6" size={14} />
-            <Text style={styles.aiText}>AI SCANNER</Text>
-          </View>
-        </View>
+        {!viewHistory && (
+          <>
+            {/* Macro Dashboard - Consistent with Home.js Modal */}
+            <View style={[styles.cardBase, styles.macroDashboard]}>
+              <View style={styles.macroStat}>
+                <Flame color="#EF4444" size={18} />
+                <Text style={styles.macroValue}>{dailyTotals.cal}</Text>
+                <Text style={styles.macroLabel}>Calories</Text>
+              </View>
+              <View style={styles.macroDivider} />
+              <View style={styles.macroStat}>
+                <Beef color="#F97316" size={18} />
+                <Text style={styles.macroValue}>{dailyTotals.pro}g</Text>
+                <Text style={styles.macroLabel}>Protein</Text>
+              </View>
+              <View style={styles.macroDivider} />
+              <View style={styles.macroStat}>
+                <Wheat color="#F59E0B" size={18} />
+                <Text style={styles.macroValue}>{dailyTotals.carb}g</Text>
+                <Text style={styles.macroLabel}>Carbs</Text>
+              </View>
+            </View>
 
-        <View style={styles.dashboardCard}>
-          <View style={styles.mainStat}>
-            <View style={styles.iconCircle}>
-              <Flame color="#FFF" size={24} />
+            {/* AI Input Section */}
+            <View style={styles.inputSection}>
+               <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Describe your meal (e.g. 2 eggs and toast)"
+                    placeholderTextColor="#94A3B8"
+                    value={foodInput}
+                    onChangeText={setFoodInput}
+                    editable={!loading}
+                  />
+                  <TouchableOpacity 
+                    style={[styles.analyzeBtn, loading && { opacity: 0.7 }]} 
+                    onPress={analyzeFoodWithAI} 
+                    disabled={loading}
+                  >
+                    {loading ? <ActivityIndicator color="#FFF" /> : <Plus color="#FFF" size={24} />}
+                  </TouchableOpacity>
+               </View>
+               <TouchableOpacity style={styles.manualToggle} onPress={() => setShowManual(!showManual)}>
+                  <Text style={styles.manualToggleText}>{showManual ? "Cancel Manual Entry" : "Or enter details manually"}</Text>
+               </TouchableOpacity>
             </View>
-            <View>
-              <Text style={styles.totalValue}>{dailyTotals.cal}</Text>
-              <Text style={styles.totalLabel}>Total Calories Today</Text>
-            </View>
-          </View>
-          
-          <View style={styles.divider} />
 
-          <View style={styles.macroRow}>
-            <View style={styles.macroBox}>
-              <Text style={styles.macroVal}>{dailyTotals.pro}g</Text>
-              <Text style={styles.macroLab}>Protein</Text>
-            </View>
-            <View style={styles.macroBox}>
-              <Text style={styles.macroVal}>{dailyTotals.carb}g</Text>
-              <Text style={styles.macroLab}>Carbs</Text>
-            </View>
-            <View style={styles.macroBox}>
-              <Text style={styles.macroVal}>{dailyTotals.fat}g</Text>
-              <Text style={styles.macroLab}>Fat</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.inputSection}>
-          <Text style={styles.sectionLabel}>Analyze Meal</Text>
-          <View style={styles.searchBar}>
-            <TextInput
-              style={styles.textInput}
-              placeholder="e.g. 250g grilled chicken"
-              placeholderTextColor="#94A3B8"
-              value={foodInput}
-              onChangeText={setFoodInput}
-            />
-            <TouchableOpacity 
-              style={[styles.actionBtn, loading && { opacity: 0.6 }]}
-              onPress={analyzeFoodWithAI}
-              disabled={loading}
-            >
-              {loading ? <ActivityIndicator color="#FFF" /> : <Plus color="#FFF" size={24} />}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <Text style={styles.sectionLabel}>Today's Entries</Text>
-        {meals.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Utensils color="#CBD5E1" size={48} />
-            <Text style={styles.emptyText}>No data for today yet.</Text>
-          </View>
-        ) : (
-          meals.map((meal) => (
-            <View key={meal.id} style={styles.mealCard}>
-              <View style={styles.mealTop}>
-                <View style={styles.gradeBadge}>
-                  <Text style={styles.gradeText}>{meal.grade}</Text>
+            {showManual && (
+              <View style={[styles.cardBase, styles.manualCard]}>
+                <Text style={styles.manualTitle}>Manual Entry</Text>
+                <TextInput 
+                  style={styles.manualInput} 
+                  placeholder="Food Name" 
+                  value={manualData.foodName}
+                  onChangeText={(t) => setManualData({...manualData, foodName: t})}
+                />
+                <View style={styles.manualGrid}>
+                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Cals" keyboardType="numeric" value={manualData.calories} onChangeText={(t) => setManualData({...manualData, calories: t})} />
+                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Prot" keyboardType="numeric" value={manualData.protein} onChangeText={(t) => setManualData({...manualData, protein: t})} />
+                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Carb" keyboardType="numeric" value={manualData.carbs} onChangeText={(t) => setManualData({...manualData, carbs: t})} />
                 </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.mealTitle}>{meal.foodName}</Text>
-                  <Text style={styles.mealSub}>
-                    {meal.calories} kcal • P: {meal.protein}g • C: {meal.carbs}g
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => handleDelete(meal.id)}>
-                  <Trash2 color="#EF4444" size={18} />
+                <TouchableOpacity style={styles.saveManualBtn} onPress={handleManualSave}>
+                  <Text style={styles.saveManualText}>LOG MEAL</Text>
                 </TouchableOpacity>
               </View>
-              <View style={styles.recBox}>
-                <Info color="#6366F1" size={14} />
-                <Text style={styles.recText}>{meal.recommendation}</Text>
+            )}
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Daily Logs</Text>
+              <Text style={styles.sectionDate}>{displayDate}</Text>
+            </View>
+          </>
+        )}
+
+        {viewHistory ? (
+          historyDates.map((date) => (
+            <TouchableOpacity 
+              key={date} 
+              style={[styles.cardBase, styles.historyItem]}
+              onPress={() => { loadData(date); setViewHistory(false); }}
+            >
+              <View style={styles.historyIconBox}><Database size={20} color="#6366F1" /></View>
+              <Text style={styles.historyDateText}>{date === todayKey ? "Today's Log" : date}</Text>
+              <ChevronLeft size={20} color="#CBD5E1" style={{ transform: [{ rotate: '180deg' }] }} />
+            </TouchableOpacity>
+          ))
+        ) : (
+          meals.map((meal) => (
+            <View key={meal.id} style={[styles.cardBase, styles.mealCard]}>
+              <View style={styles.mealInfo}>
+                <View style={styles.mealTitleRow}>
+                  <Text style={styles.mealName}>{meal.foodName}</Text>
+                  <View style={[styles.gradeBadge, { backgroundColor: '#F1F5F9' }]}>
+                    <Text style={styles.gradeText}>{meal.grade}</Text>
+                  </View>
+                </View>
+                <View style={styles.miniMacroRow}>
+                  <Text style={styles.mealSub}>{meal.calories} kcal</Text>
+                  <View style={styles.dot} />
+                  <Text style={styles.mealSub}>P: {meal.protein}g</Text>
+                  <View style={styles.dot} />
+                  <Text style={styles.mealSub}>C: {meal.carbs}g</Text>
+                </View>
+                <Text style={styles.recommendationText}>{meal.recommendation}</Text>
               </View>
+              <TouchableOpacity onPress={() => handleDelete(meal.id)} style={styles.deleteBtn}>
+                <Trash2 color="#EF4444" size={18} />
+              </TouchableOpacity>
             </View>
           ))
         )}
+        
+        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' },
-  scrollContent: { padding: 20, paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 25 },
-  headerTitle: { fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  headerSub: { color: '#64748B', fontSize: 14 },
-  aiBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE9FE', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  aiText: { marginLeft: 5, fontSize: 10, fontWeight: '800', color: '#7C3AED' },
-  dashboardCard: { backgroundColor: '#1E293B', borderRadius: 25, padding: 20, elevation: 4 },
-  mainStat: { flexDirection: 'row', alignItems: 'center', gap: 15 },
-  iconCircle: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center' },
-  totalValue: { fontSize: 32, fontWeight: '900', color: '#FFF' },
-  totalLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 15 },
-  macroRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  macroBox: { alignItems: 'center' },
-  macroVal: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  macroLab: { color: '#64748B', fontSize: 10, fontWeight: '600', marginTop: 2 },
-  inputSection: { marginVertical: 25 },
-  sectionLabel: { fontSize: 16, fontWeight: '800', color: '#334155', marginBottom: 12 },
-  searchBar: { flexDirection: 'row', gap: 10 },
-  textInput: { flex: 1, backgroundColor: '#FFF', borderRadius: 15, paddingHorizontal: 15, height: 55, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 15 },
-  actionBtn: { width: 55, height: 55, backgroundColor: '#6366F1', borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
-  mealCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: '#E2E8F0' },
-  mealTop: { flexDirection: 'row', alignItems: 'center' },
-  gradeBadge: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#CBD5E1' },
-  gradeText: { fontSize: 18, fontWeight: '900', color: '#1E293B' },
-  mealTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
-  mealSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  recBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F3FF', padding: 10, borderRadius: 12, marginTop: 12, gap: 8 },
-  recText: { flex: 1, fontSize: 12, color: '#5B21B6', lineHeight: 16 },
-  emptyContainer: { alignItems: 'center', paddingVertical: 50 },
-  emptyText: { marginTop: 10, color: '#94A3B8', fontWeight: '500' }
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  cardBase: { backgroundColor: '#FFF', borderRadius: 24, borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
+  headerSub: { fontSize: 12, color: '#64748B', fontWeight: '800', letterSpacing: 1 },
+  headerTitle: { fontSize: 32, fontWeight: '900', color: '#0F172A' },
+  headerActions: { flexDirection: 'row', gap: 10 },
+  actionCircle: { width: 44, height: 44, backgroundColor: '#FFF', borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  scrollContent: { paddingHorizontal: 20 },
+  
+  // Macro Dashboard Consistency
+  macroDashboard: { flexDirection: 'row', padding: 20, marginBottom: 20, justifyContent: 'space-around', alignItems: 'center' },
+  macroStat: { alignItems: 'center' },
+  macroValue: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginTop: 4 },
+  macroLabel: { fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' },
+  macroDivider: { width: 1, height: '60%', backgroundColor: '#E2E8F0' },
+
+  // Input Section
+  inputSection: { marginBottom: 24 },
+  inputContainer: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 20, padding: 6, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  textInput: { flex: 1, color: '#0F172A', paddingHorizontal: 15, fontSize: 14, height: 48, fontWeight: '600' },
+  analyzeBtn: { width: 48, height: 48, backgroundColor: '#1E3A8A', borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  manualToggle: { marginTop: 12, alignSelf: 'center' },
+  manualToggleText: { color: '#6366F1', fontWeight: '700', fontSize: 13 },
+
+  // Manual Card
+  manualCard: { padding: 20, marginBottom: 20, borderColor: '#6366F1' },
+  manualTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 15 },
+  manualInput: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0', color: '#0F172A' },
+  manualGrid: { flexDirection: 'row', gap: 8 },
+  saveManualBtn: { backgroundColor: '#1E3A8A', padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 10 },
+  saveManualText: { color: '#FFF', fontWeight: '900' },
+
+  // List Section
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 },
+  sectionTitle: { fontSize: 20, fontWeight: '900', color: '#0F172A' },
+  sectionDate: { fontSize: 12, fontWeight: '700', color: '#64748B' },
+
+  // Meal Cards
+  mealCard: { padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'flex-start' },
+  mealInfo: { flex: 1 },
+  mealTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  mealName: { fontSize: 17, fontWeight: '800', color: '#0F172A', marginRight: 8 },
+  gradeBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  gradeText: { fontSize: 11, fontWeight: '900', color: '#1E3A8A' },
+  miniMacroRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  mealSub: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#CBD5E1', marginHorizontal: 8 },
+  recommendationText: { fontSize: 13, color: '#64748B', fontStyle: 'italic', lineHeight: 18 },
+  deleteBtn: { padding: 8 },
+
+  // History
+  historyItem: { flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 10 },
+  historyIconBox: { width: 40, height: 40, backgroundColor: '#EEF2FF', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  historyDateText: { flex: 1, fontSize: 16, fontWeight: '700', color: '#0F172A' },
+
+  // Alert Modal (Consistent with Home.js)
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, width: '100%', maxWidth: 450, alignItems: 'center' },
+  alertIconWrapper: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
+  modalTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A', marginBottom: 8 },
+  alertMessage: { textAlign: 'center', color: '#64748B', lineHeight: 20, marginBottom: 20 },
+  closeBtn: { backgroundColor: '#1E3A8A', paddingHorizontal: 30, paddingVertical: 15, borderRadius: 16, width: '100%', alignItems: 'center' },
+  closeBtnText: { color: '#FFF', fontWeight: '900', fontSize: 14 }
 });

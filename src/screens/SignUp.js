@@ -1,13 +1,47 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
-  KeyboardAvoidingView, Platform, ScrollView, Dimensions, Alert
+  KeyboardAvoidingView, Platform, ScrollView, Dimensions, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  User, Mail, Lock, BicepsFlexed, Scale, Ruler, Eye, EyeOff 
+  User, Mail, Lock, BicepsFlexed, Scale, Ruler, Eye, EyeOff, CircleAlert, CircleCheck, Info 
 } from 'lucide-react-native';
 import { registerUser } from '../database/database';
+
+// Custom Alert Component
+const CustomAlert = ({ visible, title, message, type, onClose, onConfirm }) => {
+  if (!visible) return null;
+  
+  const isSuccess = type === 'success';
+
+  return (
+    <Modal transparent visible={visible} animationType="fade">
+      <View style={styles.alertOverlay}>
+        <View style={styles.alertContainer}>
+          <View style={[styles.alertIconBg, { backgroundColor: isSuccess ? '#DCFCE7' : '#FEE2E2' }]}>
+            {isSuccess ? (
+              <CircleCheck color="#166534" size={32} />
+            ) : (
+              <CircleAlert color="#991B1B" size={32} />
+            )}
+          </View>
+          <Text style={styles.alertTitle}>{title}</Text>
+          <Text style={styles.alertMessage}>{message}</Text>
+          <TouchableOpacity 
+            style={[styles.alertBtn, { backgroundColor: isSuccess ? '#166534' : '#1E3A8A' }]} 
+            onPress={() => {
+              onClose();
+              if (onConfirm) onConfirm();
+            }}
+          >
+            <Text style={styles.alertBtnText}>Continue</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 const SelectionChip = ({ label, isSelected, onPress, style }) => (
   <TouchableOpacity 
@@ -27,6 +61,19 @@ export default function SignUp({ onSwitchToLogin }) {
   });
   
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Custom Alert State
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'error',
+    onConfirm: null
+  });
+
+  const showAlert = (title, message, type = 'error', onConfirm = null) => {
+    setAlertConfig({ visible: true, title, message, type, onConfirm });
+  };
 
   const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
@@ -34,23 +81,24 @@ export default function SignUp({ onSwitchToLogin }) {
     const { username, email, password, confirmPassword, age, weight, height, fitnessLevel, fitnessGoal } = formData;
     
     if (!username || !email || !password || !age || !weight || !height) {
-      Alert.alert("Error", "Please fill in all required fields.");
+      showAlert("Required Fields", "Please fill in all details to create your profile.");
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match.");
+      showAlert("Mismatch", "The passwords you entered do not match.");
       return;
     }
 
     try {
-      // Save data to SQLite
       registerUser(username, email, password, age, weight, height, fitnessLevel, fitnessGoal);
-      
-      Alert.alert("Success", "Account created! Please login.", [
-        { text: "OK", onPress: () => onSwitchToLogin() }
-      ]);
+      showAlert(
+        "Welcome!", 
+        "Account created successfully! Let's get started with your login.", 
+        "success",
+        () => onSwitchToLogin()
+      );
     } catch (error) {
-      Alert.alert("Error", "This email is already registered or database error.");
+      showAlert("Error", "This email is already registered or a database error occurred.");
       console.error(error);
     }
   };
@@ -117,6 +165,16 @@ export default function SignUp({ onSwitchToLogin }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Custom Alert Implementation */}
+      <CustomAlert 
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+        onConfirm={alertConfig.onConfirm}
+      />
     </SafeAreaView>
   );
 }
@@ -149,7 +207,7 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, marginLeft: 10, fontSize: 15, color: '#1E293B' },
   sectionLabel: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginTop: 10 },
-  chipRow: { flexDirection: 'row', gap: 2 }, 
+  chipRow: { flexDirection: 'row', gap: 8 }, 
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { 
     paddingHorizontal: 12, paddingVertical: 10, borderRadius: 20, 
@@ -165,5 +223,20 @@ const styles = StyleSheet.create({
   btnText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   loginLink: { marginTop: 15, alignItems: 'center' },
   linkText: { color: '#64748B' },
-  linkAction: { color: '#1E3A8A', fontWeight: '700' }
+  linkAction: { color: '#1E3A8A', fontWeight: '700' },
+  
+  // Alert Specific Styles
+  alertOverlay: { 
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', 
+    justifyContent: 'center', alignItems: 'center' 
+  },
+  alertContainer: { 
+    width: '80%', backgroundColor: '#FFF', borderRadius: 24, 
+    padding: 24, alignItems: 'center', elevation: 10 
+  },
+  alertIconBg: { padding: 16, borderRadius: 50, marginBottom: 16 },
+  alertTitle: { fontSize: 20, fontWeight: '800', color: '#1E293B', marginBottom: 8 },
+  alertMessage: { fontSize: 15, color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
+  alertBtn: { width: '100%', height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  alertBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 }
 });

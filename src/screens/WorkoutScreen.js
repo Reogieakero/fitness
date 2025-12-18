@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, 
-  Animated, Image, ActivityIndicator 
+  Animated, Image, ActivityIndicator, Dimensions
 } from 'react-native';
 import { 
   X, Play, Pause, SkipForward, 
@@ -10,6 +10,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 
 import { logWorkout, updateUserStatsInDB } from '../database/database';
+
+const { height } = Dimensions.get('window');
 
 export default function WorkoutScreen({ workoutData, onComplete, userId, userStats }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -106,11 +108,14 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
   const handleFinishAndSave = () => {
     const isComplete = finalStatus === 'Complete';
     
+    // Extract names only for database logging to prevent Object error in database
+    const exerciseNames = workoutData.exercises.map(ex => ex.name).join(', ');
+
     logWorkout(
         userId, 
         workoutData.level, 
         isComplete ? workoutData.xp : 0, 
-        workoutData.exercises.join(', '), 
+        exerciseNames, 
         finalStatus,
         selectedImage
     );
@@ -138,6 +143,8 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
     inputRange: [0, 1],
     outputRange: ['0%', '100%']
   });
+
+  const currentExercise = workoutData.exercises[currentIndex];
 
   if (phase === 'FINISHED') {
     const success = finalStatus === 'Complete';
@@ -198,8 +205,18 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
       </View>
 
       <View style={styles.mainDisplay}>
-        <Text style={[styles.phaseTag, { color: getPhaseColor() }]}>{phase}</Text>
-        <Text style={styles.exerciseName}>{workoutData.exercises[currentIndex]}</Text>
+        <View style={styles.infoBox}>
+          <Text style={[styles.phaseTag, { color: getPhaseColor() }]}>{phase}</Text>
+          <Text style={styles.exerciseName}>{currentExercise.name}</Text>
+        </View>
+        
+        {phase !== 'REST' && (
+           <Image 
+            source={currentExercise.gif} 
+            style={styles.exerciseGif} 
+            resizeMode="contain" 
+           />
+        )}
         
         <View style={[styles.timerCircle, { borderColor: getPhaseColor() }]}>
           <Text style={[styles.timerText, { color: getPhaseColor() }]}>{timeLeft}</Text>
@@ -222,7 +239,9 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
           <Text style={styles.nextLabel}>UP NEXT</Text>
         </View>
         <Text style={styles.nextName}>
-          {currentIndex < workoutData.exercises.length - 1 ? workoutData.exercises[currentIndex + 1] : "Finish"}
+          {currentIndex < workoutData.exercises.length - 1 
+            ? workoutData.exercises[currentIndex + 1].name 
+            : "Finish Mission"}
         </Text>
       </View>
     </View>
@@ -233,23 +252,61 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  progressSection: { paddingHorizontal: 20, marginBottom: 20 },
+  progressSection: { paddingHorizontal: 20, marginBottom: 10 },
   progressBarBg: { height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%' },
   exerciseCounter: { textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: '700', color: '#94A3B8' },
-  mainDisplay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  phaseTag: { fontSize: 20, fontWeight: '900', letterSpacing: 2, marginBottom: 10 },
-  exerciseName: { fontSize: 28, fontWeight: '900', color: '#0F172A', textAlign: 'center', marginBottom: 30, paddingHorizontal: 20 },
-  timerCircle: { width: 180, height: 180, borderRadius: 90, borderWidth: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
-  timerText: { fontSize: 54, fontWeight: '900' },
+  
+  mainDisplay: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'space-between', // Spreads elements to prevent overlap
+    paddingVertical: 20 
+  },
+  infoBox: { alignItems: 'center' },
+  phaseTag: { fontSize: 18, fontWeight: '900', letterSpacing: 2, marginBottom: 5 },
+  exerciseName: { fontSize: 26, fontWeight: '900', color: '#0F172A', textAlign: 'center', paddingHorizontal: 25 },
+  
+  exerciseGif: { 
+    width: 200, 
+    height: 140, // Height capped to ensure space for timer
+    borderRadius: 20 
+  },
+  
+  timerCircle: { 
+    width: 150, 
+    height: 150, 
+    borderRadius: 75, 
+    borderWidth: 8, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#FFF' 
+  },
+  timerText: { fontSize: 50, fontWeight: '900' },
   timerSub: { fontSize: 12, fontWeight: '800', color: '#94A3B8', marginTop: -5 },
-  controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 20, paddingBottom: 30 },
+  
+  controls: { 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 20, 
+    paddingBottom: 20,
+    marginTop: 10
+  },
   pauseBtn: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
   skipBtn: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
-  nextUpCard: { backgroundColor: '#F8FAFC', padding: 20, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingBottom: 110 },
+  
+  nextUpCard: { 
+    backgroundColor: '#F8FAFC', 
+    padding: 20, 
+    borderTopLeftRadius: 32, 
+    borderTopRightRadius: 32, 
+    paddingBottom: height * 0.1 
+  },
   nextHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   nextLabel: { fontSize: 11, fontWeight: '800', color: '#94A3B8' },
   nextName: { fontSize: 16, fontWeight: '800', color: '#334155' },
+  
   finishedContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
   finishedTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A', marginTop: 15 },
   xpText: { fontSize: 16, color: '#64748B', fontWeight: '700', marginBottom: 25 },
