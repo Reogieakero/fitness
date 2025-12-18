@@ -37,7 +37,6 @@ export const initDatabase = () => {
       imageUri TEXT
     );
 
-    /* NUTRITION TABLE INTEGRATION */
     CREATE TABLE IF NOT EXISTS nutrition_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userId INTEGER,
@@ -64,7 +63,6 @@ export const initDatabase = () => {
   }
 };
 
-/* --- NUTRITION PERSISTENCE FUNCTIONS --- */
 export const saveMealToDB = (userId, meal) => {
   const today = new Date().toISOString().split('T')[0];
   return db.runSync(
@@ -85,7 +83,6 @@ export const deleteMealFromDB = (mealId) => {
   return db.runSync('DELETE FROM nutrition_logs WHERE id = ?', [mealId]);
 };
 
-/* --- KEEPING ALL YOUR EXISTING CODE BELOW --- */
 export const registerUser = (username, email, password, age, weight, height, fitnessLevel, fitnessGoal) => {
   return db.runSync(
     'INSERT INTO users (username, email, password, age, weight, height, fitnessLevel, fitnessGoal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

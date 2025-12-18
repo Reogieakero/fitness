@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Button } from 'react-native';
+import { View, StyleSheet, Button, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initDatabase } from './src/database/database';
@@ -8,7 +8,7 @@ import Login from './src/screens/Login';
 import Home from './src/screens/Home';
 import WorkoutScreen from './src/screens/WorkoutScreen';
 import WorkoutsScreen from './src/screens/WorkoutsScreen';
-import NutritionScreen from './src/screens/NutritionScreen'; // 1. IMPORTED
+import NutritionScreen from './src/screens/NutritionScreen'; 
 import NavBar from './src/components/Navbar';
 
 export default function App() {
@@ -30,8 +30,8 @@ export default function App() {
     setUserData({
       id: userFromDb.id,
       firstName: firstName,
-      xp: userFromDb.xp,
-      level: userFromDb.level,
+      xp: userFromDb.xp || 0,
+      level: userFromDb.level || 1,
       streak: userFromDb.streak || 0,
       workoutsToday: userFromDb.workoutsToday || 0,
       caloriesLogged: userFromDb.caloriesLogged || 0,
@@ -74,7 +74,7 @@ export default function App() {
       <SafeAreaProvider>
         <WorkoutScreen 
           workoutData={activeWorkoutData}
-          userId={userData.id}
+          userId={userData?.id}
           userStats={userData}
           onComplete={() => {
             setIsWorkoutActive(false);
@@ -85,26 +85,34 @@ export default function App() {
     );
   }
 
+  // --- LOADING GUARD ---
+  // If we are in MainApp but userData hasn't loaded, show a loader
+  if (!userData) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#1E3A8A" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
         <View style={styles.content}>
           {activeTab === 'Home' && (
-            <Home 
-              user={userData} 
-              onWorkoutStart={startWorkoutSession}
-            />
+            <Home user={userData} onWorkoutStart={startWorkoutSession} />
           )}
+
           {activeTab === 'Workouts' && (
             <WorkoutsScreen userId={userData.id} />
           )}
 
-          {/* 2. ADDED NUTRITION SCREEN CONDITION */}
           {activeTab === 'Nutrition' && (
-            <NutritionScreen userId={userData?.id} />
+            <NutritionScreen userId={userData.id} />
           )}
 
           {activeTab === 'Stats' && <View style={styles.placeholder} />}
+
           {activeTab === 'Profile' && (
             <View style={styles.profileContainer}>
               <Button title="Logout" onPress={handleLogout} color="#EF4444" />
@@ -120,6 +128,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   content: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   placeholder: { flex: 1, backgroundColor: '#FFF' },
   profileContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
