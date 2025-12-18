@@ -1,0 +1,101 @@
+🏋️‍♂️ Fitness Pro: Gamified Workout & Nutrition Tracker
+A modern, high-performance React Native mobile application designed to gamify your fitness journey. Track workouts with animated guides, log nutrition using AI, and level up your "Hero Rank" as you achieve your goals.
+
+✨ Key Features
+🎮 Gamification & Progression
+Hero Ranks: Progress from "Novice Recruit" to "Supreme Overlord" based on XP earned.
+
+Daily Quests: Complete tasks like "Drink 2L of water" or "10 Pushups" to earn rewards.
+
+XP System: Earn experience points for every workout logged and meal tracked.
+
+💪 Interactive Training
+Guided Workouts: Real-time workout sessions with three phases: Ready, Perform, and Rest.
+
+Visual Guides: High-quality animated GIFs for every exercise (Air Bike, Burpees, Jumping Jacks, etc.).
+
+Workout History: Keep a detailed log of every session, including intensity and duration.
+
+Progress Photos: Upload "Post-Workout" photos to visually track your transformation.
+
+🍎 Nutrition & AI Integration
+AI Meal Logging: Integrated with the Google Gemini API to analyze food descriptions and calculate calories/macros automatically.
+
+Macro Tracking: Visual rings to track Proteins, Carbs, and Fats against daily targets.
+
+Meal History: Review previous days to maintain consistency.
+
+📊 Advanced Analytics
+Workout Distribution: Bar charts showing your activity across the week.
+
+Stat Tracking: Monitor weight, height, and BMI progress over time.
+
+Streak System: Stay motivated with a visual "Flame" counter for consecutive active days.
+
+📱 Navigation Guide
+The app uses a clean, bottom-tab navigation system:
+
+Home (🏠): Dashboard with daily quests, current rank, and quick-start workouts.
+
+Workouts (💪): Library of training routines and exercise lists.
+
+Nutrition (🥩): Log meals, view macro progress, and access meal history.
+
+Stats (📊): Deep-dive analytics, weekly charts, and quest history.
+
+Profile (👤): Personal settings, physical stats (weight/height), and avatar customization.
+
+🛠️ Tech Stack
+Framework: React Native (Expo)
+
+UI/UX: * lucide-react-native for iconography.
+
+expo-linear-gradient & react-native-svg for modern, vibrant visuals.
+
+Animated API for smooth transitions and interactive blobs.
+
+AI Logic: Google Gemini API for nutrition parsing.
+
+Permissions: expo-image-picker for profile and workout photos.
+
+Storage: Custom database layer for user persistence and history tracking.
+
+🚀 Getting Started
+Prerequisites
+Node.js (LTS)
+
+Expo Go app on your mobile device or an Emulator.
+
+A Google Gemini API Key (for nutrition features).
+
+Installation
+Clone the repository:
+
+Bash
+
+git clone https://github.com/your-repo/fitness-app.git
+cd fitness-app
+Install dependencies:
+
+Bash
+
+npm install
+Configure Environment Variables: Create a .env file in the root directory:
+
+Code snippet
+
+EXPO_PUBLIC_GEMINI_API_KEY=your_api_key_here
+Start the app:
+
+Bash
+
+npx expo start
+📸 Screenshots & UI
+Dark Mode Support: The UI uses a deep slate and indigo palette for a premium feel.
+
+Glassmorphism: Navigation and cards utilize subtle shadows and blurred effects for a modern look.
+
+🤝 Contributing
+Feel free to fork this project, open issues, or submit pull requests to improve the workout logic or UI components.
+
+Created with ❤️ for Fitness Enthusiasts.
