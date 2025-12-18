@@ -170,7 +170,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
   ];
 
   const exercisePool = {
-    Low: ["BRIDGE"],
+    Low: ["BRIDGE", "LEG RAISE", "SIDE LEG RAISE", "WALL SIT"],
     Medium: ["SQUATS", "SIT UPS", "LUNGES", "PUSH UPS", "SIDE LUNGES", "AIR BIKE"],
     High: ["BURPEES", "JUMPING JACKS", "MOUNTAIN CLIMBER", "RUNNING IN PLACE", "PLANK WITH LEG RAISE", "SUPERMAN"]
   };
