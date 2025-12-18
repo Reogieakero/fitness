@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "fitness",
+    "name": "Fitness Hero",
     "slug": "fitness",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/splash.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,19 +16,20 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.yourname.fitness",
       "infoPlist": {
-        "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to help you log your meals quickly by voice.",
-        "NSMicrophoneUsageDescription": "This app uses the microphone to capture your food descriptions."
+        "NSSpeechRecognitionUsageDescription": "Allow the app to use speech recognition to analyze your food descriptions.",
+        "NSMicrophoneUsageDescription": "Allow the app to access your microphone for logging meals by voice."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/splash.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.yourname.fitness",
       "permissions": [
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -43,6 +44,11 @@
           "speechRecognitionPermission": "Allow the app to use speech recognition to analyze your food descriptions."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4e62c4ef-6308-422b-b7fe-da214e6eef19"
+      }
+    }
   }
 }

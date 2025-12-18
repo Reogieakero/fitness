@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  User, Mail, Lock, BicepsFlexed, Scale, Ruler, Eye, EyeOff, CircleAlert, CircleCheck, Info 
+  User, Mail, Lock, BicepsFlexed, Scale, Ruler, Eye, EyeOff, CircleAlert, CircleCheck 
 } from 'lucide-react-native';
 import { registerUser } from '../database/database';
 
@@ -52,6 +52,18 @@ const SelectionChip = ({ label, isSelected, onPress, style }) => (
   </TouchableOpacity>
 );
 
+const InputBox = ({ icon, isPassword, setShow, show, ...props }) => (
+  <View style={styles.inputWrapper}>
+    {icon}
+    <TextInput style={styles.input} placeholderTextColor="#94A3B8" {...props} />
+    {isPassword && (
+      <TouchableOpacity onPress={() => setShow(!show)}>
+        {show ? <EyeOff color="#1E3A8A" size={20} /> : <Eye color="#94A3B8" size={20} />}
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
 export default function SignUp({ onSwitchToLogin }) {
   const [formData, setFormData] = useState({
     username: '', email: '', password: '', confirmPassword: '',
@@ -60,7 +72,9 @@ export default function SignUp({ onSwitchToLogin }) {
     fitnessGoal: 'Get Fit'
   });
   
+  // States for password visibility toggles
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Custom Alert State
   const [alertConfig, setAlertConfig] = useState({
@@ -80,7 +94,7 @@ export default function SignUp({ onSwitchToLogin }) {
   const handleSignUp = () => {
     const { username, email, password, confirmPassword, age, weight, height, fitnessLevel, fitnessGoal } = formData;
     
-    if (!username || !email || !password || !age || !weight || !height) {
+    if (!username || !email || !password || !confirmPassword || !age || !weight || !height) {
       showAlert("Required Fields", "Please fill in all details to create your profile.");
       return;
     }
@@ -116,8 +130,30 @@ export default function SignUp({ onSwitchToLogin }) {
           <View style={styles.form}>
             <InputBox icon={<User color="#64748B" size={18}/>} placeholder="Full Name" value={formData.username} onChangeText={(v) => updateField('username', v)} />
             <InputBox icon={<Mail color="#64748B" size={18}/>} placeholder="Email" value={formData.email} onChangeText={(v) => updateField('email', v)} autoCapitalize="none" />
-            <InputBox icon={<Lock color="#64748B" size={18}/>} placeholder="Password" value={formData.password} onChangeText={(v) => updateField('password', v)} secureTextEntry={!showPassword} isPassword setShow={setShowPassword} show={showPassword} />
-            <InputBox icon={<Lock color="#64748B" size={18}/>} placeholder="Confirm Password" value={formData.confirmPassword} onChangeText={(v) => updateField('confirmPassword', v)} secureTextEntry={true} />
+            
+            {/* Primary Password Field */}
+            <InputBox 
+              icon={<Lock color="#64748B" size={18}/>} 
+              placeholder="Password" 
+              value={formData.password} 
+              onChangeText={(v) => updateField('password', v)} 
+              secureTextEntry={!showPassword} 
+              isPassword={true} 
+              setShow={setShowPassword} 
+              show={showPassword} 
+            />
+
+            {/* Confirm Password Field with Eye Icon */}
+            <InputBox 
+              icon={<Lock color="#64748B" size={18}/>} 
+              placeholder="Confirm Password" 
+              value={formData.confirmPassword} 
+              onChangeText={(v) => updateField('confirmPassword', v)} 
+              secureTextEntry={!showConfirmPassword} 
+              isPassword={true} 
+              setShow={setShowConfirmPassword} 
+              show={showConfirmPassword} 
+            />
 
             <View style={styles.row}>
               <View style={{ flex: 1, marginRight: 8 }}>
@@ -166,7 +202,6 @@ export default function SignUp({ onSwitchToLogin }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Custom Alert Implementation */}
       <CustomAlert 
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -178,18 +213,6 @@ export default function SignUp({ onSwitchToLogin }) {
     </SafeAreaView>
   );
 }
-
-const InputBox = ({ icon, isPassword, setShow, show, ...props }) => (
-  <View style={styles.inputWrapper}>
-    {icon}
-    <TextInput style={styles.input} placeholderTextColor="#94A3B8" {...props} />
-    {isPassword && (
-      <TouchableOpacity onPress={() => setShow(!show)}>
-        {show ? <EyeOff color="#1E3A8A" size={20} /> : <Eye color="#94A3B8" size={20} />}
-      </TouchableOpacity>
-    )}
-  </View>
-);
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
@@ -225,7 +248,6 @@ const styles = StyleSheet.create({
   linkText: { color: '#64748B' },
   linkAction: { color: '#1E3A8A', fontWeight: '700' },
   
-  // Alert Specific Styles
   alertOverlay: { 
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', 
     justifyContent: 'center', alignItems: 'center' 
