@@ -125,6 +125,7 @@ export default function ProfileScreen({ userId, onLogout }) {
           onChangeText={(txt) => setProfile({ ...profile, [field]: txt })}
           keyboardType={keyboardType}
           placeholder="--"
+          placeholderTextColor="#94A3B8"
         />
       ) : (
         <Text style={styles.statValue}>{value || '--'}</Text>

@@ -14,19 +14,19 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourname.fitness",
+      "bundleIdentifier": "com.akeroakero.fitness",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "Allow the app to use speech recognition to analyze your food descriptions.",
         "NSMicrophoneUsageDescription": "Allow the app to access your microphone for logging meals by voice."
       }
     },
     "android": {
+      "package": "com.akeroakero.fitness",
       "adaptiveIcon": {
         "foregroundImage": "./assets/splash.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.yourname.fitness",
       "permissions": [
         "RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
@@ -47,8 +47,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "4e62c4ef-6308-422b-b7fe-da214e6eef19"
+        "projectId": "73a94e4b-419a-4dcd-b6b9-e202117fbccd"
       }
-    }
+    },
+    "owner": "akeroakero"
   }
 }

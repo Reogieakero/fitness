@@ -190,7 +190,7 @@ export default function WorkoutsScreen({ user, userId }) {
             <Text style={styles.title}>History</Text>
           </View>
           <View style={styles.streakBadge}>
-            <Flame size={18} color="#F59E0B" fill="#F59E0B" />
+            <Flame color="#F97316" size={18} fill="#F97316" />
             <Text style={styles.streakText}>{streak}</Text>
           </View>
         </View>

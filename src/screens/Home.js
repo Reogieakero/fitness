@@ -139,8 +139,8 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
     const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     const questPool = {
       Monday: [{ id: 'q1', title: "Drink 2L of water", xp: 20 }, { id: 'q2', title: "Morning Stretch", xp: 15 }, { id: 'q3', title: "Log Breakfast", xp: 15 }],
-      Tuesday: [{ id: 't1', title: "Walk 5,000 steps", xp: 25 }, { id: 't2', title: "No Sugary Drinks", xp: 15 }, { id: 't3', title: "10 Pushups", xp: 10 }],
-      default: [{ id: 'd1', title: "Complete HIIT Session", xp: 30 }, { id: 'd2', title: "Log Weight", xp: 10 }, { id: 'd3', title: "Drink 8 glasses of water", xp: 10 }]
+      Tuesday: [{ id: 't1', title: "Walk 1,000 steps", xp: 25 }, { id: 't2', title: "No Sugary Drinks", xp: 15 }, { id: 't3', title: "10 Pushups", xp: 10 }],
+      default: [{ id: 'd1', title: "Complete HIIT Session", xp: 30 }, { id: 'd2', title: "Log Food", xp: 10 }, { id: 'd3', title: "Drink 8 glasses of water", xp: 10 }]
     };
     const dailyPool = questPool[todayName] || questPool.default;
     const completedIds = getTodaysCompletedQuests(user.id);
@@ -170,7 +170,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
   ];
 
   const exercisePool = {
-    Low: ["BRIDGE", "LEG RAISE", "SIDE LEG RAISE", "WALL SIT"],
+    Low: ["BRIDGE"],
     Medium: ["SQUATS", "SIT UPS", "LUNGES", "PUSH UPS", "SIDE LUNGES", "AIR BIKE"],
     High: ["BURPEES", "JUMPING JACKS", "MOUNTAIN CLIMBER", "RUNNING IN PLACE", "PLANK WITH LEG RAISE", "SUPERMAN"]
   };
@@ -259,7 +259,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good Afternoon,</Text>
+            <Text style={styles.greeting}>Good Day,</Text>
             <Text style={styles.userName}>{user.firstName}</Text>
           </View>
           <View style={styles.streakBadge}>

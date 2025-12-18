@@ -64,6 +64,7 @@ export default function Login({ onSwitchToSignUp, onLoginSuccess }) {
                 <TextInput 
                   style={styles.input} 
                   placeholder="you@example.com" 
+                  placeholderTextColor="#64748B"
                   autoCapitalize="none" 
                   keyboardType="email-address"
                   value={email} 

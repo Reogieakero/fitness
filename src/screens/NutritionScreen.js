@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, ActivityIndicator, Keyboard, Modal, Dimensions
+  TouchableOpacity, Keyboard, Modal, Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  Trash2, Brain, Plus, Database, Flame, ShieldCheck, 
-  Edit3, X, History, ChevronLeft, AlertCircle, 
-  Utensils, Beef, Wheat, Droplets, Target
+  Trash2, Plus, Database, Flame, History, 
+  ChevronLeft, AlertCircle, Utensils, Beef, Wheat, Search
 } from 'lucide-react-native';
 
 import { 
@@ -17,11 +16,9 @@ import {
   getAllMealDates 
 } from '../database/database';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const { width } = Dimensions.get('window');
 
 // --- CUSTOM COMPONENTS ---
-
 const CustomAlert = ({ visible, title, message, onClose }) => (
   <Modal visible={visible} transparent animationType="fade">
     <View style={styles.modalOverlay}>
@@ -41,7 +38,6 @@ const CustomAlert = ({ visible, title, message, onClose }) => (
 
 export default function NutritionScreen({ userId }) {
   const [foodInput, setFoodInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const [meals, setMeals] = useState([]);
   const [dailyTotals, setDailyTotals] = useState({ cal: 0, pro: 0, carb: 0, fat: 0 });
   const [showManual, setShowManual] = useState(false);
@@ -57,8 +53,6 @@ export default function NutritionScreen({ userId }) {
   const displayDate = new Date().toLocaleDateString('en-US', { 
     weekday: 'long', month: 'short', day: 'numeric' 
   });
-
-  const TARGETS = { cal: 2500, pro: 160, carb: 250, fat: 70 };
 
   useEffect(() => {
     if (userId) loadData();
@@ -82,51 +76,38 @@ export default function NutritionScreen({ userId }) {
     setDailyTotals(totals);
   };
 
-  const handleSave = (mealObj) => {
-    saveMealToDB(userId, { ...mealObj, date: todayKey });
-    loadData();
-  };
-
   const handleManualSave = () => {
     if (!manualData.foodName || !manualData.calories) {
-      setAlertConfig({ visible: true, title: "Incomplete Data", message: "Please provide a food name and calorie amount." });
+      setAlertConfig({ 
+        visible: true, 
+        title: "Missing Info", 
+        message: "Please enter a food name and calorie amount." 
+      });
       return;
     }
-    handleSave({
-      ...manualData,
-      grade: 'Manual',
-      recommendation: 'Manually logged.'
+    
+    saveMealToDB(userId, { 
+      ...manualData, 
+      date: todayKey,
+      grade: 'LOG', 
+      recommendation: 'Manual log entry' 
     });
+
+    loadData();
     setManualData({ foodName: '', calories: '', protein: '', carbs: '', fat: '' });
+    setFoodInput('');
     setShowManual(false);
     Keyboard.dismiss();
   };
 
-  const analyzeFoodWithAI = async () => {
-    if (!foodInput.trim() || loading) return;
-    setLoading(true);
-    Keyboard.dismiss();
-
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Analyze food: "${foodInput}". Return JSON: {"foodName": "string", "calories": number, "protein": number, "carbs": number, "fat": number, "grade": "A|B|C|D|F", "recommendation": "string"}` }] }]
-        })
-      });
-
-      const data = await response.json();
-      const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
-      const mealData = JSON.parse(cleanJson);
-
-      handleSave(mealData);
-      setFoodInput('');
-    } catch (error) {
-      setAlertConfig({ visible: true, title: "Analysis Failed", message: "Could not connect to the Lab. Please try manual entry." });
-    } finally {
-      setLoading(false);
+  // This function replaces the AI analysis. It fills the form for you.
+  const handleQuickAdd = () => {
+    if (!foodInput.trim()) {
+      setShowManual(true);
+      return;
     }
+    setManualData({ ...manualData, foodName: foodInput });
+    setShowManual(true);
   };
 
   const handleDelete = (id) => {
@@ -146,81 +127,65 @@ export default function NutritionScreen({ userId }) {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerSub}>{viewHistory ? "ARCHIVE" : "DAILY FUEL"}</Text>
-          <Text style={styles.headerTitle}>{viewHistory ? "Fuel History" : "Precision Lab"}</Text>
+          <Text style={styles.headerTitle}>{viewHistory ? "Fuel History" : "Nutrition Lab"}</Text>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.actionCircle} onPress={() => setViewHistory(!viewHistory)}>
-            {viewHistory ? <ChevronLeft color="#1E3A8A" size={20}/> : <History color="#1E3A8A" size={20} />}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.actionCircle} onPress={() => setViewHistory(!viewHistory)}>
+          {viewHistory ? <ChevronLeft color="#1E3A8A" size={20}/> : <History color="#1E3A8A" size={20} />}
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
         {!viewHistory && (
           <>
-            {/* Macro Dashboard - Consistent with Home.js Modal */}
+            {/* Daily Macro Progress */}
             <View style={[styles.cardBase, styles.macroDashboard]}>
-              <View style={styles.macroStat}>
-                <Flame color="#EF4444" size={18} />
-                <Text style={styles.macroValue}>{dailyTotals.cal}</Text>
-                <Text style={styles.macroLabel}>Calories</Text>
-              </View>
+              <View style={styles.macroStat}><Flame color="#EF4444" size={18} /><Text style={styles.macroValue}>{dailyTotals.cal}</Text><Text style={styles.macroLabel}>Calories</Text></View>
               <View style={styles.macroDivider} />
-              <View style={styles.macroStat}>
-                <Beef color="#F97316" size={18} />
-                <Text style={styles.macroValue}>{dailyTotals.pro}g</Text>
-                <Text style={styles.macroLabel}>Protein</Text>
-              </View>
+              <View style={styles.macroStat}><Beef color="#F97316" size={18} /><Text style={styles.macroValue}>{dailyTotals.pro}g</Text><Text style={styles.macroLabel}>Protein</Text></View>
               <View style={styles.macroDivider} />
-              <View style={styles.macroStat}>
-                <Wheat color="#F59E0B" size={18} />
-                <Text style={styles.macroValue}>{dailyTotals.carb}g</Text>
-                <Text style={styles.macroLabel}>Carbs</Text>
-              </View>
+              <View style={styles.macroStat}><Wheat color="#F59E0B" size={18} /><Text style={styles.macroValue}>{dailyTotals.carb}g</Text><Text style={styles.macroLabel}>Carbs</Text></View>
             </View>
 
-            {/* AI Input Section */}
+            {/* Quick Entry Bar */}
             <View style={styles.inputSection}>
                <View style={styles.inputContainer}>
                   <TextInput
                     style={styles.textInput}
-                    placeholder="Describe your meal (e.g. 2 eggs and toast)"
+                    placeholder="Enter meal name to start..."
                     placeholderTextColor="#94A3B8"
                     value={foodInput}
                     onChangeText={setFoodInput}
-                    editable={!loading}
                   />
-                  <TouchableOpacity 
-                    style={[styles.analyzeBtn, loading && { opacity: 0.7 }]} 
-                    onPress={analyzeFoodWithAI} 
-                    disabled={loading}
-                  >
-                    {loading ? <ActivityIndicator color="#FFF" /> : <Plus color="#FFF" size={24} />}
+                  <TouchableOpacity style={styles.addBtn} onPress={handleQuickAdd}>
+                    <Plus color="#FFF" size={24} />
                   </TouchableOpacity>
                </View>
-               <TouchableOpacity style={styles.manualToggle} onPress={() => setShowManual(!showManual)}>
-                  <Text style={styles.manualToggleText}>{showManual ? "Cancel Manual Entry" : "Or enter details manually"}</Text>
-               </TouchableOpacity>
             </View>
 
+            {/* Manual Entry Form */}
             {showManual && (
               <View style={[styles.cardBase, styles.manualCard]}>
-                <Text style={styles.manualTitle}>Manual Entry</Text>
+                <Text style={styles.manualTitle}>Log New Meal</Text>
                 <TextInput 
                   style={styles.manualInput} 
                   placeholder="Food Name" 
-                  value={manualData.foodName}
-                  onChangeText={(t) => setManualData({...manualData, foodName: t})}
+                  placeholderTextColor="#94A3B8"
+                  value={manualData.foodName} 
+                  onChangeText={(t) => setManualData({...manualData, foodName: t})} 
                 />
                 <View style={styles.manualGrid}>
-                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Cals" keyboardType="numeric" value={manualData.calories} onChangeText={(t) => setManualData({...manualData, calories: t})} />
-                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Prot" keyboardType="numeric" value={manualData.protein} onChangeText={(t) => setManualData({...manualData, protein: t})} />
-                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Carb" keyboardType="numeric" value={manualData.carbs} onChangeText={(t) => setManualData({...manualData, carbs: t})} />
+                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Cals" keyboardType="numeric" placeholderTextColor="#94A3B8" value={manualData.calories} onChangeText={(t) => setManualData({...manualData, calories: t})} />
+                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Protein" keyboardType="numeric" placeholderTextColor="#94A3B8" value={manualData.protein} onChangeText={(t) => setManualData({...manualData, protein: t})} />
+                  <TextInput style={[styles.manualInput, { flex: 1 }]} placeholder="Carbs" keyboardType="numeric" placeholderTextColor="#94A3B8" value={manualData.carbs} onChangeText={(t) => setManualData({...manualData, carbs: t})} />
                 </View>
-                <TouchableOpacity style={styles.saveManualBtn} onPress={handleManualSave}>
-                  <Text style={styles.saveManualText}>LOG MEAL</Text>
-                </TouchableOpacity>
+                <View style={styles.manualBtnRow}>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowManual(false)}>
+                    <Text style={styles.cancelBtnText}>CANCEL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.saveManualBtn} onPress={handleManualSave}>
+                    <Text style={styles.saveManualText}>SAVE MEAL</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
@@ -233,11 +198,7 @@ export default function NutritionScreen({ userId }) {
 
         {viewHistory ? (
           historyDates.map((date) => (
-            <TouchableOpacity 
-              key={date} 
-              style={[styles.cardBase, styles.historyItem]}
-              onPress={() => { loadData(date); setViewHistory(false); }}
-            >
+            <TouchableOpacity key={date} style={[styles.cardBase, styles.historyItem]} onPress={() => { loadData(date); setViewHistory(false); }}>
               <View style={styles.historyIconBox}><Database size={20} color="#6366F1" /></View>
               <Text style={styles.historyDateText}>{date === todayKey ? "Today's Log" : date}</Text>
               <ChevronLeft size={20} color="#CBD5E1" style={{ transform: [{ rotate: '180deg' }] }} />
@@ -247,20 +208,12 @@ export default function NutritionScreen({ userId }) {
           meals.map((meal) => (
             <View key={meal.id} style={[styles.cardBase, styles.mealCard]}>
               <View style={styles.mealInfo}>
-                <View style={styles.mealTitleRow}>
-                  <Text style={styles.mealName}>{meal.foodName}</Text>
-                  <View style={[styles.gradeBadge, { backgroundColor: '#F1F5F9' }]}>
-                    <Text style={styles.gradeText}>{meal.grade}</Text>
-                  </View>
-                </View>
+                <Text style={styles.mealName}>{meal.foodName}</Text>
                 <View style={styles.miniMacroRow}>
                   <Text style={styles.mealSub}>{meal.calories} kcal</Text>
-                  <View style={styles.dot} />
-                  <Text style={styles.mealSub}>P: {meal.protein}g</Text>
-                  <View style={styles.dot} />
-                  <Text style={styles.mealSub}>C: {meal.carbs}g</Text>
+                  <View style={styles.dot} /><Text style={styles.mealSub}>P: {meal.protein}g</Text>
+                  <View style={styles.dot} /><Text style={styles.mealSub}>C: {meal.carbs}g</Text>
                 </View>
-                <Text style={styles.recommendationText}>{meal.recommendation}</Text>
               </View>
               <TouchableOpacity onPress={() => handleDelete(meal.id)} style={styles.deleteBtn}>
                 <Trash2 color="#EF4444" size={18} />
@@ -268,8 +221,7 @@ export default function NutritionScreen({ userId }) {
             </View>
           ))
         )}
-        
-        <View style={{ height: 100 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -281,57 +233,46 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
   headerSub: { fontSize: 12, color: '#64748B', fontWeight: '800', letterSpacing: 1 },
   headerTitle: { fontSize: 32, fontWeight: '900', color: '#0F172A' },
-  headerActions: { flexDirection: 'row', gap: 10 },
   actionCircle: { width: 44, height: 44, backgroundColor: '#FFF', borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
   scrollContent: { paddingHorizontal: 20 },
   
-  // Macro Dashboard Consistency
   macroDashboard: { flexDirection: 'row', padding: 20, marginBottom: 20, justifyContent: 'space-around', alignItems: 'center' },
   macroStat: { alignItems: 'center' },
   macroValue: { fontSize: 18, fontWeight: '900', color: '#0F172A', marginTop: 4 },
   macroLabel: { fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' },
   macroDivider: { width: 1, height: '60%', backgroundColor: '#E2E8F0' },
 
-  // Input Section
-  inputSection: { marginBottom: 24 },
+  inputSection: { marginBottom: 20 },
   inputContainer: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 20, padding: 6, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
   textInput: { flex: 1, color: '#0F172A', paddingHorizontal: 15, fontSize: 14, height: 48, fontWeight: '600' },
-  analyzeBtn: { width: 48, height: 48, backgroundColor: '#1E3A8A', borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  manualToggle: { marginTop: 12, alignSelf: 'center' },
-  manualToggleText: { color: '#6366F1', fontWeight: '700', fontSize: 13 },
+  addBtn: { width: 48, height: 48, backgroundColor: '#1E3A8A', borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
 
-  // Manual Card
   manualCard: { padding: 20, marginBottom: 20, borderColor: '#6366F1' },
   manualTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 15 },
   manualInput: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0', color: '#0F172A' },
   manualGrid: { flexDirection: 'row', gap: 8 },
-  saveManualBtn: { backgroundColor: '#1E3A8A', padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 10 },
+  manualBtnRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  cancelBtn: { flex: 1, padding: 16, borderRadius: 16, alignItems: 'center', backgroundColor: '#F1F5F9' },
+  cancelBtnText: { color: '#64748B', fontWeight: '800' },
+  saveManualBtn: { flex: 2, backgroundColor: '#1E3A8A', padding: 16, borderRadius: 16, alignItems: 'center' },
   saveManualText: { color: '#FFF', fontWeight: '900' },
 
-  // List Section
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 },
   sectionTitle: { fontSize: 20, fontWeight: '900', color: '#0F172A' },
   sectionDate: { fontSize: 12, fontWeight: '700', color: '#64748B' },
 
-  // Meal Cards
-  mealCard: { padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'flex-start' },
+  mealCard: { padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
   mealInfo: { flex: 1 },
-  mealTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  mealName: { fontSize: 17, fontWeight: '800', color: '#0F172A', marginRight: 8 },
-  gradeBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  gradeText: { fontSize: 11, fontWeight: '900', color: '#1E3A8A' },
-  miniMacroRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  mealName: { fontSize: 17, fontWeight: '800', color: '#0F172A', marginBottom: 4 },
+  miniMacroRow: { flexDirection: 'row', alignItems: 'center' },
   mealSub: { fontSize: 13, fontWeight: '700', color: '#64748B' },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#CBD5E1', marginHorizontal: 8 },
-  recommendationText: { fontSize: 13, color: '#64748B', fontStyle: 'italic', lineHeight: 18 },
   deleteBtn: { padding: 8 },
 
-  // History
   historyItem: { flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 10 },
   historyIconBox: { width: 40, height: 40, backgroundColor: '#EEF2FF', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   historyDateText: { flex: 1, fontSize: 16, fontWeight: '700', color: '#0F172A' },
 
-  // Alert Modal (Consistent with Home.js)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, width: '100%', maxWidth: 450, alignItems: 'center' },
   alertIconWrapper: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },

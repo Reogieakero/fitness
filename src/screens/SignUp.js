@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
   KeyboardAvoidingView, Platform, ScrollView, Dimensions, Modal
@@ -52,15 +52,18 @@ const SelectionChip = ({ label, isSelected, onPress, style }) => (
   </TouchableOpacity>
 );
 
-const InputBox = ({ icon, isPassword, setShow, show, ...props }) => (
-  <View style={styles.inputWrapper}>
-    {icon}
-    <TextInput style={styles.input} placeholderTextColor="#94A3B8" {...props} />
-    {isPassword && (
-      <TouchableOpacity onPress={() => setShow(!show)}>
-        {show ? <EyeOff color="#1E3A8A" size={20} /> : <Eye color="#94A3B8" size={20} />}
-      </TouchableOpacity>
-    )}
+const InputBox = ({ icon, isPassword, setShow, show, error, ...props }) => (
+  <View style={styles.inputContainer}>
+    <View style={[styles.inputWrapper, error && { borderColor: '#EF4444' }]}>
+      {icon}
+      <TextInput style={styles.input} placeholderTextColor="#94A3B8" {...props} />
+      {isPassword && (
+        <TouchableOpacity onPress={() => setShow(!show)}>
+          {show ? <EyeOff color="#1E3A8A" size={20} /> : <Eye color="#94A3B8" size={20} />}
+        </TouchableOpacity>
+      )}
+    </View>
+    {error ? <Text style={styles.errorText}>{error}</Text> : null}
   </View>
 );
 
@@ -72,24 +75,35 @@ export default function SignUp({ onSwitchToLogin }) {
     fitnessGoal: 'Get Fit'
   });
   
-  // States for password visibility toggles
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
   
-  // Custom Alert State
   const [alertConfig, setAlertConfig] = useState({
-    visible: false,
-    title: '',
-    message: '',
-    type: 'error',
-    onConfirm: null
+    visible: false, title: '', message: '', type: 'error', onConfirm: null
   });
 
   const showAlert = (title, message, type = 'error', onConfirm = null) => {
     setAlertConfig({ visible: true, title, message, type, onConfirm });
   };
 
-  const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+  // Real-time password validation logic
+  const validatePassword = (pass) => {
+    if (!pass) return '';
+    if (pass.length < 8) return 'Minimum 8 characters required';
+    if (!/[A-Z]/.test(pass)) return 'Must include an uppercase letter';
+    if (!/[a-z]/.test(pass)) return 'Must include a lowercase letter';
+    if (!/\d/.test(pass)) return 'Must include a number';
+    if (!/[@$!%*?&]/.test(pass)) return 'Must include a special character (@$!%*?&)';
+    return '';
+  };
+
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'password') {
+      setPasswordError(validatePassword(value));
+    }
+  };
 
   const handleSignUp = () => {
     const { username, email, password, confirmPassword, age, weight, height, fitnessLevel, fitnessGoal } = formData;
@@ -98,6 +112,14 @@ export default function SignUp({ onSwitchToLogin }) {
       showAlert("Required Fields", "Please fill in all details to create your profile.");
       return;
     }
+
+    // Final check before submission
+    const error = validatePassword(password);
+    if (error) {
+      showAlert("Weak Password", error);
+      return;
+    }
+
     if (password !== confirmPassword) {
       showAlert("Mismatch", "The passwords you entered do not match.");
       return;
@@ -131,7 +153,6 @@ export default function SignUp({ onSwitchToLogin }) {
             <InputBox icon={<User color="#64748B" size={18}/>} placeholder="Full Name" value={formData.username} onChangeText={(v) => updateField('username', v)} />
             <InputBox icon={<Mail color="#64748B" size={18}/>} placeholder="Email" value={formData.email} onChangeText={(v) => updateField('email', v)} autoCapitalize="none" />
             
-            {/* Primary Password Field */}
             <InputBox 
               icon={<Lock color="#64748B" size={18}/>} 
               placeholder="Password" 
@@ -141,9 +162,9 @@ export default function SignUp({ onSwitchToLogin }) {
               isPassword={true} 
               setShow={setShowPassword} 
               show={showPassword} 
+              error={passwordError}
             />
 
-            {/* Confirm Password Field with Eye Icon */}
             <InputBox 
               icon={<Lock color="#64748B" size={18}/>} 
               placeholder="Confirm Password" 
@@ -223,14 +244,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', color: '#334155', textAlign: 'center' },
   form: { gap: 12 },
   row: { flexDirection: 'row' },
+  inputContainer: { marginBottom: 4 },
   inputWrapper: { 
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', 
     borderRadius: 12, paddingHorizontal: 16, height: 52, 
     borderWidth: 1, borderColor: '#E2E8F0' 
   },
   input: { flex: 1, marginLeft: 10, fontSize: 15, color: '#1E293B' },
+  errorText: { color: '#EF4444', fontSize: 12, marginTop: 4, marginLeft: 4, fontWeight: '600' },
   sectionLabel: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginTop: 10 },
-  chipRow: { flexDirection: 'row', gap: 8 }, 
+  chipRow: { flexDirection: 'row', gap: 2 }, 
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { 
     paddingHorizontal: 12, paddingVertical: 10, borderRadius: 20, 

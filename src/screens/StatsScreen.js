@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   Trophy, Flame, Zap, 
   Beef, Wheat, Droplets, Award,
-  RefreshCcw, X, Info, CheckCircle2
+  RefreshCcw, X, Info, CheckCircle2,
+  Dumbbell
 } from 'lucide-react-native';
 
 import { 
@@ -229,25 +230,23 @@ export default function StatsScreen({ userId }) {
           <Text style={styles.headerSub}>PERFORMANCE HUB</Text>
           <Text style={styles.headerTitle}>Hero Stats</Text>
         </View>
-        <TouchableOpacity style={styles.refreshBtn} onPress={loadAllStats}>
-          <RefreshCcw color="#1E3A8A" size={20} />
-        </TouchableOpacity>
+        
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.heroRow}>
           <TouchableOpacity style={[styles.cardBase, styles.heroCard]} onPress={() => openModal('streak')}>
-            <Flame color="#EF4444" fill="#EF4444" size={22} />
+            <Flame color="#F97316" size={22} fill="#F97316" />
             <Text style={styles.heroValue}>{stats.streak}</Text>
             <Text style={styles.heroLabel}>Streak</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.cardBase, styles.heroCard]} onPress={() => openModal('rank')}>
-            <Trophy color="#F59E0B" fill="#F59E0B" size={22} />
+            {<Trophy color="#D97706" size={22} />}
             <Text style={styles.heroValue}>Lv. {stats.level}</Text>
             <Text style={styles.heroLabel}>Rank</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.cardBase, styles.heroCard]} onPress={() => openModal('workouts')}>
-            <Zap color="#6366F1" fill="#6366F120" size={22} />
+            <Dumbbell color="#6366F1" fill="#6366F120" size={22} />
             <Text style={styles.heroValue}>{stats.workoutCount}</Text>
             <Text style={styles.heroLabel}>Workouts</Text>
           </TouchableOpacity>
