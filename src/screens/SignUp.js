@@ -1,18 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
-  KeyboardAvoidingView, Platform, ScrollView, Dimensions, Modal
+  KeyboardAvoidingView, Platform, ScrollView, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   User, Mail, Lock, BicepsFlexed, Scale, Ruler, Eye, EyeOff, CircleAlert, CircleCheck 
 } from 'lucide-react-native';
-import { registerUser } from '../database/database';
+import { registerUser, checkUserExists } from '../database/database'; // Import checkUserExists
 
-// Custom Alert Component
 const CustomAlert = ({ visible, title, message, type, onClose, onConfirm }) => {
   if (!visible) return null;
-  
   const isSuccess = type === 'success';
 
   return (
@@ -20,11 +18,7 @@ const CustomAlert = ({ visible, title, message, type, onClose, onConfirm }) => {
       <View style={styles.alertOverlay}>
         <View style={styles.alertContainer}>
           <View style={[styles.alertIconBg, { backgroundColor: isSuccess ? '#DCFCE7' : '#FEE2E2' }]}>
-            {isSuccess ? (
-              <CircleCheck color="#166534" size={32} />
-            ) : (
-              <CircleAlert color="#991B1B" size={32} />
-            )}
+            {isSuccess ? <CircleCheck color="#166534" size={32} /> : <CircleAlert color="#991B1B" size={32} />}
           </View>
           <Text style={styles.alertTitle}>{title}</Text>
           <Text style={styles.alertMessage}>{message}</Text>
@@ -44,10 +38,7 @@ const CustomAlert = ({ visible, title, message, type, onClose, onConfirm }) => {
 };
 
 const SelectionChip = ({ label, isSelected, onPress, style }) => (
-  <TouchableOpacity 
-    onPress={onPress}
-    style={[styles.chip, isSelected && styles.chipSelected, style]}
-  >
+  <TouchableOpacity onPress={onPress} style={[styles.chip, isSelected && styles.chipSelected, style]}>
     <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{label}</Text>
   </TouchableOpacity>
 );
@@ -78,16 +69,12 @@ export default function SignUp({ onSwitchToLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
-  
-  const [alertConfig, setAlertConfig] = useState({
-    visible: false, title: '', message: '', type: 'error', onConfirm: null
-  });
+  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'error', onConfirm: null });
 
   const showAlert = (title, message, type = 'error', onConfirm = null) => {
     setAlertConfig({ visible: true, title, message, type, onConfirm });
   };
 
-  // Real-time password validation logic
   const validatePassword = (pass) => {
     if (!pass) return '';
     if (pass.length < 8) return 'Minimum 8 characters required';
@@ -100,9 +87,7 @@ export default function SignUp({ onSwitchToLogin }) {
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (field === 'password') {
-      setPasswordError(validatePassword(value));
-    }
+    if (field === 'password') setPasswordError(validatePassword(value));
   };
 
   const handleSignUp = () => {
@@ -113,7 +98,6 @@ export default function SignUp({ onSwitchToLogin }) {
       return;
     }
 
-    // Final check before submission
     const error = validatePassword(password);
     if (error) {
       showAlert("Weak Password", error);
@@ -125,8 +109,19 @@ export default function SignUp({ onSwitchToLogin }) {
       return;
     }
 
+    // UPDATED LOGIC: Check if user exists before trying to register
     try {
-      registerUser(username, email, password, age, weight, height, fitnessLevel, fitnessGoal);
+      const existingUser = checkUserExists(email.toLowerCase());
+      if (existingUser) {
+        showAlert(
+          "Email Registered", 
+          "This email is already associated with an account. Try logging in instead.", 
+          "error"
+        );
+        return;
+      }
+
+      registerUser(username, email.toLowerCase(), password, age, weight, height, fitnessLevel, fitnessGoal);
       showAlert(
         "Welcome!", 
         "Account created successfully! Let's get started with your login.", 
@@ -134,7 +129,7 @@ export default function SignUp({ onSwitchToLogin }) {
         () => onSwitchToLogin()
       );
     } catch (error) {
-      showAlert("Error", "This email is already registered or a database error occurred.");
+      showAlert("Error", "A database error occurred. Please try again later.");
       console.error(error);
     }
   };
@@ -151,7 +146,7 @@ export default function SignUp({ onSwitchToLogin }) {
 
           <View style={styles.form}>
             <InputBox icon={<User color="#64748B" size={18}/>} placeholder="Full Name" value={formData.username} onChangeText={(v) => updateField('username', v)} />
-            <InputBox icon={<Mail color="#64748B" size={18}/>} placeholder="Email" value={formData.email} onChangeText={(v) => updateField('email', v)} autoCapitalize="none" />
+            <InputBox icon={<Mail color="#64748B" size={18}/>} placeholder="Email" value={formData.email} onChangeText={(v) => updateField('email', v)} autoCapitalize="none" keyboardType="email-address" />
             
             <InputBox 
               icon={<Lock color="#64748B" size={18}/>} 
@@ -190,25 +185,14 @@ export default function SignUp({ onSwitchToLogin }) {
             <Text style={styles.sectionLabel}>Fitness Level</Text>
             <View style={styles.chipRow}>
               {['Beginner', 'Intermediate', 'Advanced'].map(level => (
-                <SelectionChip 
-                  key={level} 
-                  label={level} 
-                  isSelected={formData.fitnessLevel === level} 
-                  onPress={() => updateField('fitnessLevel', level)} 
-                  style={{ flex: 1, alignItems: 'center' }} 
-                />
+                <SelectionChip key={level} label={level} isSelected={formData.fitnessLevel === level} onPress={() => updateField('fitnessLevel', level)} style={{ flex: 1, alignItems: 'center' }} />
               ))}
             </View>
 
             <Text style={styles.sectionLabel}>Fitness Goal</Text>
             <View style={styles.chipGroup}>
               {['Lose Weight', 'Gain Muscle', 'Get Fit', 'Maintain'].map(goal => (
-                <SelectionChip 
-                  key={goal} 
-                  label={goal} 
-                  isSelected={formData.fitnessGoal === goal} 
-                  onPress={() => updateField('fitnessGoal', goal)} 
-                />
+                <SelectionChip key={goal} label={goal} isSelected={formData.fitnessGoal === goal} onPress={() => updateField('fitnessGoal', goal)} />
               ))}
             </View>
 
@@ -255,30 +239,17 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginTop: 10 },
   chipRow: { flexDirection: 'row', gap: 2 }, 
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { 
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 20, 
-    backgroundColor: '#FFF', borderColor: '#E2E8F0', borderWidth: 1 
-  },
+  chip: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 20, backgroundColor: '#FFF', borderColor: '#E2E8F0', borderWidth: 1 },
   chipSelected: { backgroundColor: '#1E3A8A', borderColor: '#1E3A8A' },
   chipText: { color: '#64748B', fontWeight: '600', fontSize: 13 },
   chipTextSelected: { color: '#FFF' },
-  btnPrimary: { 
-    backgroundColor: '#1E3A8A', height: 56, borderRadius: 14, 
-    alignItems: 'center', justifyContent: 'center', marginTop: 20 
-  },
+  btnPrimary: { backgroundColor: '#1E3A8A', height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   btnText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   loginLink: { marginTop: 15, alignItems: 'center' },
   linkText: { color: '#64748B' },
   linkAction: { color: '#1E3A8A', fontWeight: '700' },
-  
-  alertOverlay: { 
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'center', alignItems: 'center' 
-  },
-  alertContainer: { 
-    width: '80%', backgroundColor: '#FFF', borderRadius: 24, 
-    padding: 24, alignItems: 'center', elevation: 10 
-  },
+  alertOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  alertContainer: { width: '80%', backgroundColor: '#FFF', borderRadius: 24, padding: 24, alignItems: 'center', elevation: 10 },
   alertIconBg: { padding: 16, borderRadius: 50, marginBottom: 16 },
   alertTitle: { fontSize: 20, fontWeight: '800', color: '#1E293B', marginBottom: 8 },
   alertMessage: { fontSize: 15, color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
