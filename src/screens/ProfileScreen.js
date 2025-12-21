@@ -242,11 +242,11 @@ export default function ProfileScreen({ userId, onLogout }) {
           <View style={styles.proModal}>
             <View style={styles.modalIndicator} />
             <Trophy color="#F59E0B" size={48} style={{ marginBottom: 10 }} />
-            <Text style={styles.modalTitle}>Fitness Hero RPG</Text>
+            <Text style={styles.modalTitle}>RiseActive RPG</Text>
             <View style={styles.aboutContent}>
               <Text style={styles.aboutDesc}>
                 Welcome to the ultimate gamified fitness experience. {"\n\n"}
-                Fitness Hero turns your daily grind into an epic adventure. Log your workouts to gain XP, complete missions to level up your real-life stats, and track your progress through our RPG-inspired interface.
+                RiseActive turns your daily grind into an epic adventure. Log your workouts to gain XP, complete missions to level up your real-life stats, and track your progress through our RPG-inspired interface.
               </Text>
               <View style={styles.versionBadge}>
                 <Text style={styles.versionText}>BUILD v1.2.0 - STABLE</Text>

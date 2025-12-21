@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Fitness Hero",
+    "name": "RiseActive",
     "slug": "fitness",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -45,11 +45,11 @@
         }
       ]
     ],
+    "owner": "skadooshehh",
     "extra": {
       "eas": {
-        "projectId": "73a94e4b-419a-4dcd-b6b9-e202117fbccd"
+        "projectId": "87db8e4e-f39f-4b19-bffb-8311d918e63a"
       }
-    },
-    "owner": "akeroakero"
+    }
   }
 }

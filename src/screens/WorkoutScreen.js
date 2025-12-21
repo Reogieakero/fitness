@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, 
-  Animated, Image, ActivityIndicator, Dimensions
+  Animated, Image, ActivityIndicator, Dimensions, Alert
 } from 'react-native';
 import { 
   X, Play, Pause, SkipForward, 
   Dumbbell, CheckCircle, ArrowRight, AlertCircle, Camera, Image as ImageIcon
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av'; 
 
 import { logWorkout, updateUserStatsInDB } from '../database/database';
 
@@ -22,6 +23,73 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
   const [selectedImage, setSelectedImage] = useState(null);
   
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const soundRef = useRef(null);
+
+  // --- AUDIO LOGIC ---
+  
+  async function playPhaseSound(currentPhase) {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+      }
+  
+      let audioFile;
+      // Matching filenames exactly as seen in your file explorer image
+      if (currentPhase === 'READY') {
+        audioFile = require('../../assets/mp3/Ready.mp3');
+      } else if (currentPhase === 'PERFORM') {
+        audioFile = require('../../assets/mp3/Perform.mp3');
+      } else if (currentPhase === 'REST') {
+        audioFile = require('../../assets/mp3/Rest.mp3'); // Added Rest audio
+      } else {
+        return; 
+      }
+
+      const { sound } = await Audio.Sound.createAsync(
+        audioFile,
+        { shouldPlay: isActive } 
+      );
+      soundRef.current = sound;
+    } catch (error) {
+      console.log("Error playing sound:", error);
+    }
+  }
+
+  useEffect(() => {
+    if (isActive && phase !== 'FINISHED') {
+      playPhaseSound(phase);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    const handleAudioPauseResume = async () => {
+      if (soundRef.current) {
+        try {
+          const status = await soundRef.current.getStatusAsync();
+          if (status.isLoaded) {
+            if (isActive) {
+              await soundRef.current.playAsync();
+            } else {
+              await soundRef.current.pauseAsync();
+            }
+          }
+        } catch (error) {
+          console.log("Error toggling audio:", error);
+        }
+      }
+    };
+    handleAudioPauseResume();
+  }, [isActive]);
+
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, []);
+
+  // --- TIMER & PROGRESS LOGIC ---
 
   useEffect(() => {
     let interval = null;
@@ -35,17 +103,24 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
     return () => clearInterval(interval);
   }, [isActive, timeLeft, phase]);
 
+  // FIXED: Progress bar logic to pause/resume instead of resetting
   useEffect(() => {
     if (phase === 'FINISHED') return;
-    let duration = phase === 'READY' ? 5000 : phase === 'PERFORM' ? 30000 : 15000;
 
-    progressAnim.setValue(0);
-    Animated.timing(progressAnim, {
-      toValue: 1,
-      duration: duration,
-      useNativeDriver: false,
-    }).start();
-  }, [phase, currentIndex]);
+    if (isActive) {
+      // Start/Resume animation from current value to 1
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: timeLeft * 1000, 
+        useNativeDriver: false,
+      }).start();
+    } else {
+      // Pause animation immediately
+      progressAnim.stopAnimation();
+    }
+  }, [isActive, phase, currentIndex]); 
+
+  // --- IMAGE PICKER LOGIC ---
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -63,7 +138,7 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
   const takePhoto = async () => {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (permissionResult.granted === false) {
-      alert("You've refused to allow this app to access your camera!");
+      Alert.alert("Permission Denied", "You've refused to allow this app to access your camera!");
       return;
     }
 
@@ -78,7 +153,10 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
     }
   };
 
+  // --- WORKOUT FLOW LOGIC ---
+
   const handlePhaseTransition = () => {
+    progressAnim.setValue(0); // Only reset bar when switching phases
     if (phase === 'READY') {
       setPhase('PERFORM');
       setTimeLeft(30);
@@ -98,35 +176,21 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
 
   const finalizeWorkout = (isComplete) => {
     if (phase === 'FINISHED') return; 
-
-    const statusText = isComplete ? 'Complete' : 'Incomplete';
-    setFinalStatus(statusText);
+    setFinalStatus(isComplete ? 'Complete' : 'Incomplete');
     setPhase('FINISHED');
     setIsActive(false);
   };
 
   const handleFinishAndSave = () => {
     const isComplete = finalStatus === 'Complete';
-    
-    // Extract names only for database logging to prevent Object error in database
     const exerciseNames = workoutData.exercises.map(ex => ex.name).join(', ');
 
-    logWorkout(
-        userId, 
-        workoutData.level, 
-        isComplete ? workoutData.xp : 0, 
-        exerciseNames, 
-        finalStatus,
-        selectedImage
-    );
+    logWorkout(userId, workoutData.level, isComplete ? workoutData.xp : 0, exerciseNames, finalStatus, selectedImage);
     
     if (isComplete) {
       let newXp = userStats.xp + workoutData.xp;
       let newLevel = userStats.level;
-      if (newXp >= 100) {
-        newLevel += 1;
-        newXp -= 100;
-      }
+      if (newXp >= 100) { newLevel += 1; newXp -= 100; }
       updateUserStatsInDB(userId, newXp, newLevel);
     }
     onComplete();
@@ -165,7 +229,7 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.uploadButtons}>
+              <div style={styles.uploadButtons}>
                 <TouchableOpacity style={styles.uploadBtn} onPress={takePhoto}>
                   <Camera color="#1E3A8A" size={24} />
                   <Text style={styles.uploadBtnText}>Camera</Text>
@@ -174,7 +238,7 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
                   <ImageIcon color="#1E3A8A" size={24} />
                   <Text style={styles.uploadBtnText}>Gallery</Text>
                 </TouchableOpacity>
-              </View>
+              </div>
             )}
           </View>
 
@@ -256,57 +320,21 @@ const styles = StyleSheet.create({
   progressBarBg: { height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%' },
   exerciseCounter: { textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: '700', color: '#94A3B8' },
-  
-  mainDisplay: { 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'space-between', // Spreads elements to prevent overlap
-    paddingVertical: 20 
-  },
+  mainDisplay: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20 },
   infoBox: { alignItems: 'center' },
   phaseTag: { fontSize: 18, fontWeight: '900', letterSpacing: 2, marginBottom: 5 },
   exerciseName: { fontSize: 26, fontWeight: '900', color: '#0F172A', textAlign: 'center', paddingHorizontal: 25 },
-  
-  exerciseGif: { 
-    width: 200, 
-    height: 140, // Height capped to ensure space for timer
-    borderRadius: 20 
-  },
-  
-  timerCircle: { 
-    width: 150, 
-    height: 150, 
-    borderRadius: 75, 
-    borderWidth: 8, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#FFF' 
-  },
+  exerciseGif: { width: 200, height: 140, borderRadius: 20 },
+  timerCircle: { width: 150, height: 150, borderRadius: 75, borderWidth: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
   timerText: { fontSize: 50, fontWeight: '900' },
   timerSub: { fontSize: 12, fontWeight: '800', color: '#94A3B8', marginTop: -5 },
-  
-  controls: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    gap: 20, 
-    paddingBottom: 20,
-    marginTop: 10
-  },
+  controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 20, paddingBottom: 20, marginTop: 10 },
   pauseBtn: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
   skipBtn: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
-  
-  nextUpCard: { 
-    backgroundColor: '#F8FAFC', 
-    padding: 20, 
-    borderTopLeftRadius: 32, 
-    borderTopRightRadius: 32, 
-    paddingBottom: height * 0.1 
-  },
+  nextUpCard: { backgroundColor: '#F8FAFC', padding: 20, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingBottom: height * 0.1 },
   nextHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   nextLabel: { fontSize: 11, fontWeight: '800', color: '#94A3B8' },
   nextName: { fontSize: 16, fontWeight: '800', color: '#334155' },
-  
   finishedContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
   finishedTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A', marginTop: 15 },
   xpText: { fontSize: 16, color: '#64748B', fontWeight: '700', marginBottom: 25 },

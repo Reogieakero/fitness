@@ -62,14 +62,10 @@ export const initDatabase = () => {
     );
   `);
 
-  // SAFETY MIGRATION: 
-  // This adds the profileImage column to existing databases that were created before the feature was added.
+  // SAFETY MIGRATIONS: 
   try {
     db.runSync('ALTER TABLE users ADD COLUMN profileImage TEXT;');
-    console.log("Database Migration: profileImage column added.");
-  } catch (e) {
-    // If the column already exists, SQLite throws an error. We catch it and do nothing.
-  }
+  } catch (e) {}
 };
 
 // --- NUTRITION FUNCTIONS ---
@@ -232,8 +228,7 @@ export const getTodayTotalCalories = (userId) => {
   return result?.total || 0;
 };
 
-// --- AGGREGATE STATS FUNCTIONS (FOR STATS SCREEN) ---
-
+// --- AGGREGATE STATS ---
 export const getWeeklyWorkoutDistribution = (userId) => {
   const results = [];
   for (let i = 6; i >= 0; i--) {
