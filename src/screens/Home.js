@@ -9,6 +9,8 @@ import {
   CheckCircle2, Quote as QuoteIcon, Zap, Dumbbell, AlertCircle,
   Utensils, Shield, Crown, Droplets, Beef, Wheat, Info
 } from 'lucide-react-native';
+// Ensure you have installed this: npm install react-native-confetti-cannon
+import ConfettiCannon from 'react-native-confetti-cannon';
 
 import { 
   updateUserStatsInDB, saveQuestCompletion, getTodaysCompletedQuests,
@@ -16,6 +18,14 @@ import {
 } from '../database/database';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// --- UTILS ---
+const formatCalories = (num) => {
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  }
+  return num;
+};
 
 // --- ASSET MAPPING ---
 const EXERCISE_GIFS = {
@@ -37,7 +47,6 @@ const EXERCISE_GIFS = {
   'WALL SIT': require('../../assets/FITNESS APP/WALL SIT.gif'),
 };
 
-// Descriptions for each exercise
 const EXERCISE_DESCRIPTIONS = {
   'AIR BIKE': "Lie on your back and simulate a cycling motion to target your obliques and core.",
   'BRIDGE': "Lifting your hips while lying flat to strengthen glutes and lower back stability.",
@@ -137,6 +146,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
   const [todayMeals, setTodayMeals] = useState([]);
   const [streak, setStreak] = useState(0);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'success' });
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const nutritionAnim = useRef(new Animated.Value(0)).current;
   const workoutAnim = useRef(new Animated.Value(0)).current;
@@ -220,7 +230,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
     const exerciseData = selectedNames.map(name => ({
       name: name,
       gif: EXERCISE_GIFS[name],
-      description: EXERCISE_DESCRIPTIONS[name] // Map description
+      description: EXERCISE_DESCRIPTIONS[name]
     }));
     setGeneratedWorkout({ level: level.title, exercises: exerciseData, xp: level.xp });
   };
@@ -249,9 +259,28 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
     updateUserStatsInDB(user.id, newXp, newLevel);
     saveQuestCompletion(user.id, questId);
     setUser(prev => ({ ...prev, xp: newXp, level: newLevel }));
-    setQuests(prev => prev.map(q => q.id === questId ? { ...q, completed: true } : q));
-    if (leveledUp) {
-      setAlertConfig({ visible: true, title: "RANK ASCENSION!", message: `Rank achieved: ${HERO_RANKS[newLevel]}. Welcome to Lvl ${newLevel}!`, type: 'success' });
+    
+    // Update local state and check for full completion
+    const updatedQuests = quests.map(q => q.id === questId ? { ...q, completed: true } : q);
+    setQuests(updatedQuests);
+
+    const allFinished = updatedQuests.every(q => q.completed);
+
+    if (allFinished) {
+      setShowConfetti(true);
+      setAlertConfig({ 
+        visible: true, 
+        title: "QUEST MASTER!", 
+        message: "You've finished all your daily objectives. Great work, Hero!", 
+        type: 'success' 
+      });
+    } else if (leveledUp) {
+      setAlertConfig({ 
+        visible: true, 
+        title: "RANK ASCENSION!", 
+        message: `Rank achieved: ${HERO_RANKS[newLevel]}. Welcome to Lvl ${newLevel}!`, 
+        type: 'success' 
+      });
     }
   };
 
@@ -271,11 +300,13 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* 1. Modals & Alerts */}
       <ActionModal 
         visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} type={alertConfig.type} 
         onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} 
       />
 
+      {/* 2. Main Content */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
@@ -314,7 +345,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
 
         <View style={styles.statsGrid}>
           <StatBox icon={<Target color="#1E40AF" size={18} />} value={todayWorkouts.length} label="Workouts" sub="Today" onPress={() => openModal(setShowWorkoutModal, workoutAnim)} />
-          <StatBox icon={<Activity color="#059669" size={18} />} value={caloriesConsumed || 0} label="Calories" sub="Consumed" onPress={() => openModal(setShowNutritionModal, nutritionAnim)} />
+          <StatBox icon={<Activity color="#059669" size={18} />} value={formatCalories(caloriesConsumed || 0)} label="Calories" sub="Consumed" onPress={() => openModal(setShowNutritionModal, nutritionAnim)} />
           <StatBox icon={<Trophy color="#D97706" size={18} />} value={allBadges.filter(b => b.earned).length} label="Badges" sub="Collected" onPress={() => openModal(setShowAchievements, badgeAnim)} style={styles.badgeStatBox} />
         </View>
 
@@ -342,18 +373,18 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
       {/* --- NUTRITION MODAL --- */}
       <Modal visible={showNutritionModal} transparent animationType="none">
         <View style={styles.modalOverlay}>
-          <Animated.View style={[styles.modalContent, styles.polishedModal, { height: '85%', opacity: nutritionAnim, transform: [{ scale: nutritionAnim }] }]}>
+          <Animated.View style={[styles.modalContent, styles.polishedModal, { maxHeight: '85%', opacity: nutritionAnim, transform: [{ scale: nutritionAnim }] }]}>
             <View style={styles.modalHeader}>
               <View><Text style={styles.modalTitle}>Daily Fuel</Text><Text style={styles.modalSubHeader}>Metabolic Log</Text></View>
               <TouchableOpacity onPress={() => closeModal(setShowNutritionModal, nutritionAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
             </View>
-            <div style={styles.macroDashboard}>
+            <View style={styles.macroDashboard}>
                 <View style={styles.macroStat}><Beef color="#EF4444" size={18} /><Text style={styles.macroValue}>{totalMacros.p}g</Text><Text style={styles.macroLabel}>Protein</Text></View>
                 <View style={styles.macroDivider} />
                 <View style={styles.macroStat}><Wheat color="#F59E0B" size={18} /><Text style={styles.macroValue}>{totalMacros.c}g</Text><Text style={styles.macroLabel}>Carbs</Text></View>
                 <View style={styles.macroDivider} />
                 <View style={styles.macroStat}><Droplets color="#3B82F6" size={18} /><Text style={styles.macroValue}>{totalMacros.f}g</Text><Text style={styles.macroLabel}>Fats</Text></View>
-            </div>
+            </View>
             <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>
               {todayMeals.length === 0 ? (
                 <View style={styles.emptyContainer}><Utensils color="#CBD5E1" size={48} /><Text style={styles.emptyText}>No fuel logged today.</Text></View>
@@ -368,7 +399,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
                          <View style={[styles.miniBadge, { backgroundColor: '#DBEAFE' }]}><Text style={[styles.miniBadgeText, { color: '#1D4ED8' }]}>F {meal.fat}g</Text></View>
                       </View>
                     </View>
-                    <View style={styles.mealCalContainerPro}><Text style={styles.mealCalValuePro}>{meal.calories}</Text><Text style={styles.mealCalUnitPro}>kcal</Text></View>
+                    <View style={styles.mealCalContainerPro}><Text style={styles.mealCalValuePro}>{formatCalories(meal.calories)}</Text><Text style={styles.mealCalUnitPro}>kcal</Text></View>
                   </View>
                 ))
               )}
@@ -381,14 +412,14 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
       {/* --- MISSION MODAL --- */}
       <Modal visible={showWorkoutModal} transparent animationType="none">
         <View style={styles.modalOverlay}>
-          <Animated.View style={[styles.modalContent, styles.polishedModal, { height: '80%', opacity: workoutAnim, transform: [{ scale: workoutAnim }] }]}>
+          <Animated.View style={[styles.modalContent, styles.polishedModal, { maxHeight: '85%', opacity: workoutAnim, transform: [{ scale: workoutAnim }] }]}>
             <View style={styles.modalHeader}>
               <View><Text style={styles.modalTitle}>{generatedWorkout ? 'Mission File' : 'Mission Selection'}</Text></View>
               <TouchableOpacity onPress={() => closeModal(setShowWorkoutModal, workoutAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
             </View>
-            <View style={{ flex: 1, width: '100%' }}>
+            <View style={{ width: '100%' }}>
               {!generatedWorkout ? (
-                <ScrollView contentContainerStyle={{ paddingHorizontal: 24 }}>
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }} bounces={false} overScrollMode="never">
                   {intensities.map((item) => (
                     <TouchableOpacity key={item.id} style={styles.intensityCard} onPress={() => handleGenerateWorkout(item)}>
                       <View style={[styles.intensityIcon, { backgroundColor: item.color + '15' }]}><Zap color={item.color} size={24} /></View>
@@ -398,7 +429,7 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
                   ))}
                 </ScrollView>
               ) : (
-                <View style={{ flex: 1 }}>
+                <View>
                   <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20 }}>
                     <View style={styles.workoutBanner}><Dumbbell color="#1E3A8A" size={20} /><Text style={styles.workoutBannerText}>Mission XP: +{generatedWorkout.xp}</Text></View>
                     {generatedWorkout.exercises.map((ex, idx) => (
@@ -406,7 +437,6 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
                         <View style={styles.exerciseIndexBox}><Text style={styles.exerciseIndex}>{idx + 1}</Text></View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.exerciseName}>{ex.name}</Text>
-                          {/* Display Description in Mission File */}
                           <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{ex.description}</Text>
                           <Image 
                              source={ex.gif} 
@@ -428,9 +458,12 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
       {/* --- HALL OF FAME MODAL --- */}
       <Modal visible={showAchievements} transparent animationType="none">
         <View style={styles.modalOverlay}>
-          <Animated.View style={[styles.modalContent, { height: '85%', opacity: badgeAnim, transform: [{ scale: badgeAnim }] }]}>
-            <View style={styles.modalHeader}><Text style={styles.modalTitle}>Hall of Fame</Text><TouchableOpacity onPress={() => closeModal(setShowAchievements, badgeAnim)}><X color="#0F172A" size={24} /></TouchableOpacity></View>
-            <ScrollView contentContainerStyle={styles.badgeList} showsVerticalScrollIndicator={false}>
+          <Animated.View style={[styles.modalContent, styles.polishedModal, { maxHeight: '85%', opacity: badgeAnim, transform: [{ scale: badgeAnim }] }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Hall of Fame</Text>
+              <TouchableOpacity onPress={() => closeModal(setShowAchievements, badgeAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={[styles.badgeList, { paddingHorizontal: 24 }]} showsVerticalScrollIndicator={false}>
               {allBadges.map((badge) => (
                 <View key={badge.id} style={[styles.badgeItem, !badge.earned && styles.badgeLocked]}>
                   <View style={[styles.badgeIconCircle, { backgroundColor: badge.earned ? badge.color + '15' : '#F1F5F9' }]}>
@@ -441,10 +474,24 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
                 </View>
               ))}
             </ScrollView>
-            <TouchableOpacity style={styles.closeBtn} onPress={() => closeModal(setShowAchievements, badgeAnim)}><Text style={styles.closeBtnText}>CLOSE HALL</Text></TouchableOpacity>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.closeBtn} onPress={() => closeModal(setShowAchievements, badgeAnim)}>
+                <Text style={styles.closeBtnText}>CLOSE HALL</Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </View>
       </Modal>
+
+      {/* 3. ConfettiCannon placed LAST so it appears in FRONT of everything */}
+      {showConfetti && (
+        <ConfettiCannon 
+          count={200} 
+          origin={{x: -10, y: 0}} 
+          fadeOut={true} 
+          onAnimationEnd={() => setShowConfetti(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -496,12 +543,12 @@ const styles = StyleSheet.create({
   achievementTitle: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
   achievementSub: { fontSize: 12, color: '#64748B', fontWeight: '500' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, width: '100%', maxWidth: 450, elevation: 20 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 32, paddingVertical: 24, width: '100%', maxWidth: 450, elevation: 20 },
   polishedModal: { paddingHorizontal: 0 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingHorizontal: 24 },
   modalTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A' },
   modalSubHeader: { fontSize: 13, color: '#64748B', fontWeight: '600' },
-  macroDashboard: { flexDirection: 'row', backgroundColor: '#F8FAFC', marginHorizontal: 24, padding: 16, borderRadius: 24, marginBottom: 24, borderWeight: 1, borderColor: '#F1F5F9', justifyContent: 'space-around' },
+  macroDashboard: { flexDirection: 'row', backgroundColor: '#F8FAFC', marginHorizontal: 24, padding: 16, borderRadius: 24, marginBottom: 24, borderWidth: 1, borderColor: '#F1F5F9', justifyContent: 'space-around' },
   macroStat: { alignItems: 'center' },
   macroValue: { fontSize: 16, fontWeight: '900', color: '#0F172A', marginTop: 4 },
   macroLabel: { fontSize: 10, fontWeight: '700', color: '#64748B' },
@@ -525,7 +572,7 @@ const styles = StyleSheet.create({
   exerciseIndexBox: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   exerciseIndex: { fontSize: 11, fontWeight: '900', color: '#1E3A8A' },
   exerciseName: { flex: 1, fontSize: 14, fontWeight: '700', color: '#334155' },
-  modalFooter: { borderTopWidth: 1, borderTopColor: '#F1F5F9', padding: 20, backgroundColor: '#FFF' },
+  modalFooter: { padding: 20 },
   completeBtn: { backgroundColor: '#059669', padding: 18, borderRadius: 20, alignItems: 'center' },
   completeBtnText: { color: '#FFF', fontWeight: '900', fontSize: 16 },
   closeBtn: { backgroundColor: '#1E3A8A', padding: 16, borderRadius: 16, alignItems: 'center' },

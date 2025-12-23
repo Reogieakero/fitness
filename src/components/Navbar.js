@@ -1,14 +1,14 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { Home, Dumbbell, BarChart2, User, Beef } from 'lucide-react-native'; // Added Utensils
+import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { Home, Dumbbell, BarChart2, User, Beef } from 'lucide-react-native';
 
 export default function NavBar({ activeTab, setActiveTab }) {
   const tabs = [
-    { id: 'Home', icon: Home },
-    { id: 'Workouts', icon: Dumbbell },
-    { id: 'Nutrition', icon: Beef }, // New Tab
-    { id: 'Stats', icon: BarChart2 },
-    { id: 'Profile', icon: User },
+    { id: 'Home', icon: Home, label: 'Home' },
+    { id: 'Workouts', icon: Dumbbell, label: 'Work' },
+    { id: 'Nutrition', icon: Beef, label: 'Eat' },
+    { id: 'Stats', icon: BarChart2, label: 'Stats' },
+    { id: 'Profile', icon: User, label: 'Me' },
   ];
 
   return (
@@ -17,18 +17,24 @@ export default function NavBar({ activeTab, setActiveTab }) {
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+
           return (
             <TouchableOpacity 
               key={tab.id} 
               onPress={() => setActiveTab(tab.id)}
-              style={styles.tabItem}
+              // Switch between fixed and flexible width based on active state
+              style={[styles.tabItem, isActive ? styles.tabItemActive : styles.tabItemInactive]}
             >
               <Icon 
-                size={24} 
+                size={22} 
                 color={isActive ? '#1E3A8A' : '#94A3B8'} 
                 strokeWidth={isActive ? 2.5 : 2}
               />
-              {isActive && <View style={styles.activeDot} />}
+              
+              {/* Only render text if active */}
+              {isActive && (
+                <Text style={styles.activeLabel}>{tab.label}</Text>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -42,17 +48,36 @@ const styles = StyleSheet.create({
   navBar: { 
     flexDirection: 'row', 
     backgroundColor: '#FFF', 
-    width: '90%', // Increased width from 85% to 90% to accommodate the 5th icon
-    height: 70, 
+    width: '92%', 
+    height: 65, 
     borderRadius: 35, 
     elevation: 10, 
     shadowColor: '#000', 
     shadowOpacity: 0.1, 
-    shadowRadius: 20,
-    paddingHorizontal: 15, // Adjusted padding
-    justifyContent: 'space-around',
+    shadowRadius: 10,
+    paddingHorizontal: 10,
+    justifyContent: 'space-between',
     alignItems: 'center'
   },
-  tabItem: { alignItems: 'center', justifyContent: 'center', flex: 1 }, // Added flex: 1 for equal spacing
-  activeDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#1E3A8A', marginTop: 4 }
+  tabItem: { 
+    flexDirection: 'row', // Align Icon and Text side-by-side
+    alignItems: 'center', 
+    justifyContent: 'center',
+    height: 45,
+    borderRadius: 25,
+  },
+  tabItemActive: {
+    backgroundColor: '#E0E7FF', // Light blue background for active tab
+    paddingHorizontal: 12,
+    flex: 1.5, // Active tab takes slightly more space
+  },
+  tabItemInactive: {
+    flex: 1,
+  },
+  activeLabel: {
+    color: '#1E3A8A',
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 8, // Space between icon and text
+  }
 });

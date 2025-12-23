@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   exerciseIndexBox: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   exerciseIndex: { fontSize: 10, fontWeight: '900', color: '#1E3A8A' },
   exerciseText: { flex: 1, fontSize: 15, fontWeight: '700', color: '#334155' },
-  modalFooter: { padding: 24, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  modalFooter: { padding: 24 },
   returnBtn: { backgroundColor: '#1E3A8A', padding: 18, borderRadius: 20, alignItems: 'center' },
   returnBtnText: { color: '#FFF', fontWeight: '900', fontSize: 14 },
   emptyState: { alignItems: 'center', marginTop: 100, gap: 15 },

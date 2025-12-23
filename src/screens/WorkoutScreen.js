@@ -319,7 +319,6 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF', overflow: 'hidden' },
-  // ABSTRACT BACKGROUND SHAPES
   abstractShape: {
     position: 'absolute',
     borderRadius: 200,
