@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   Target, Flame, Trophy, ChevronRight, Award, Activity, X,
   CheckCircle2, Quote as QuoteIcon, Zap, Dumbbell, AlertCircle,
-  Utensils, Shield, Crown, Droplets, Beef, Wheat
+  Utensils, Shield, Crown, Droplets, Beef, Wheat, Info
 } from 'lucide-react-native';
 
 import { 
@@ -18,7 +18,6 @@ import {
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // --- ASSET MAPPING ---
-// Using ../../ to go from src/screens/ to the root assets folder
 const EXERCISE_GIFS = {
   'AIR BIKE': require('../../assets/FITNESS APP/AIR BIKE.gif'),
   'BRIDGE': require('../../assets/FITNESS APP/BRIDGE.gif'),
@@ -36,6 +35,26 @@ const EXERCISE_GIFS = {
   'SQUATS': require('../../assets/FITNESS APP/SQUATS.gif'),
   'SUPERMAN': require('../../assets/FITNESS APP/SUPERMAN.gif'),
   'WALL SIT': require('../../assets/FITNESS APP/WALL SIT.gif'),
+};
+
+// Descriptions for each exercise
+const EXERCISE_DESCRIPTIONS = {
+  'AIR BIKE': "Lie on your back and simulate a cycling motion to target your obliques and core.",
+  'BRIDGE': "Lifting your hips while lying flat to strengthen glutes and lower back stability.",
+  'BURPEES': "A full-body explosive movement combining a squat, push-up, and jump.",
+  'JUMPING JACKS': "Classic cardio move to increase heart rate and improve full-body coordination.",
+  'LEG RAISE': "Lower abdominal focus by lifting straight legs from a laying position.",
+  'LUNGES': "Step forward and lower hips to develop lower body strength and balance.",
+  'MOUNTAIN CLIMBER': "High-intensity core and cardio move simulating a vertical climb on the floor.",
+  'PLANK WITH LEG RAISE': "Core stability challenge adding leg lifts to a standard plank position.",
+  'PUSH UPS': "Fundamental upper body exercise for chest, shoulders, and triceps.",
+  'RUNNING IN PLACE': "High knees or steady pace running to boost metabolic burn.",
+  'SIDE LEG RAISE': "Targets the hip abductors and outer thighs for better lateral stability.",
+  'SIDE LUNGES': "Lateral movement focusing on inner and outer thighs and glutes.",
+  'SIT UPS': "Core isolation exercise to strengthen the abdominal wall.",
+  'SQUATS': "The king of leg exercises for building powerful glutes and quads.",
+  'SUPERMAN': "Lying face down and lifting limbs to strengthen the entire posterior chain.",
+  'WALL SIT': "Isometric hold against a wall to build endurance in the quadriceps.",
 };
 
 const HERO_RANKS = {
@@ -200,7 +219,8 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
     const selectedNames = exercisePool[level.id];
     const exerciseData = selectedNames.map(name => ({
       name: name,
-      gif: EXERCISE_GIFS[name]
+      gif: EXERCISE_GIFS[name],
+      description: EXERCISE_DESCRIPTIONS[name] // Map description
     }));
     setGeneratedWorkout({ level: level.title, exercises: exerciseData, xp: level.xp });
   };
@@ -327,13 +347,13 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
               <View><Text style={styles.modalTitle}>Daily Fuel</Text><Text style={styles.modalSubHeader}>Metabolic Log</Text></View>
               <TouchableOpacity onPress={() => closeModal(setShowNutritionModal, nutritionAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
             </View>
-            <View style={styles.macroDashboard}>
+            <div style={styles.macroDashboard}>
                 <View style={styles.macroStat}><Beef color="#EF4444" size={18} /><Text style={styles.macroValue}>{totalMacros.p}g</Text><Text style={styles.macroLabel}>Protein</Text></View>
                 <View style={styles.macroDivider} />
                 <View style={styles.macroStat}><Wheat color="#F59E0B" size={18} /><Text style={styles.macroValue}>{totalMacros.c}g</Text><Text style={styles.macroLabel}>Carbs</Text></View>
                 <View style={styles.macroDivider} />
                 <View style={styles.macroStat}><Droplets color="#3B82F6" size={18} /><Text style={styles.macroValue}>{totalMacros.f}g</Text><Text style={styles.macroLabel}>Fats</Text></View>
-            </View>
+            </div>
             <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>
               {todayMeals.length === 0 ? (
                 <View style={styles.emptyContainer}><Utensils color="#CBD5E1" size={48} /><Text style={styles.emptyText}>No fuel logged today.</Text></View>
@@ -385,9 +405,9 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
                       <View key={idx} style={styles.exerciseItem}>
                         <View style={styles.exerciseIndexBox}><Text style={styles.exerciseIndex}>{idx + 1}</Text></View>
                         <View style={{ flex: 1 }}>
-                          {/* FIXED: Targeting ex.name instead of the entire object */}
                           <Text style={styles.exerciseName}>{ex.name}</Text>
-                          {/* GIF Preview */}
+                          {/* Display Description in Mission File */}
+                          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{ex.description}</Text>
                           <Image 
                              source={ex.gif} 
                              style={{ width: 80, height: 80, marginTop: 10, borderRadius: 12 }} 

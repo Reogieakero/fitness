@@ -5,14 +5,15 @@ import {
 } from 'react-native';
 import { 
   X, Play, Pause, SkipForward, 
-  Dumbbell, CheckCircle, ArrowRight, AlertCircle, Camera, Image as ImageIcon
+  Dumbbell, CheckCircle, ArrowRight, AlertCircle, Camera, Image as ImageIcon,
+  Info
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av'; 
 
 import { logWorkout, updateUserStatsInDB } from '../database/database';
 
-const { height } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function WorkoutScreen({ workoutData, onComplete, userId, userStats }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -26,7 +27,6 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
   const soundRef = useRef(null);
 
   // --- AUDIO LOGIC ---
-  
   async function playPhaseSound(currentPhase) {
     try {
       if (soundRef.current) {
@@ -34,13 +34,12 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
       }
   
       let audioFile;
-      // Matching filenames exactly as seen in your file explorer image
       if (currentPhase === 'READY') {
         audioFile = require('../../assets/mp3/Ready.mp3');
       } else if (currentPhase === 'PERFORM') {
         audioFile = require('../../assets/mp3/Perform.mp3');
       } else if (currentPhase === 'REST') {
-        audioFile = require('../../assets/mp3/Rest.mp3'); // Added Rest audio
+        audioFile = require('../../assets/mp3/Rest.mp3'); 
       } else {
         return; 
       }
@@ -90,7 +89,6 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
   }, []);
 
   // --- TIMER & PROGRESS LOGIC ---
-
   useEffect(() => {
     let interval = null;
     if (isActive && timeLeft > 0 && phase !== 'FINISHED') {
@@ -103,25 +101,21 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
     return () => clearInterval(interval);
   }, [isActive, timeLeft, phase]);
 
-  // FIXED: Progress bar logic to pause/resume instead of resetting
   useEffect(() => {
     if (phase === 'FINISHED') return;
 
     if (isActive) {
-      // Start/Resume animation from current value to 1
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: timeLeft * 1000, 
         useNativeDriver: false,
       }).start();
     } else {
-      // Pause animation immediately
       progressAnim.stopAnimation();
     }
   }, [isActive, phase, currentIndex]); 
 
   // --- IMAGE PICKER LOGIC ---
-
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -154,9 +148,8 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
   };
 
   // --- WORKOUT FLOW LOGIC ---
-
   const handlePhaseTransition = () => {
-    progressAnim.setValue(0); // Only reset bar when switching phases
+    progressAnim.setValue(0);
     if (phase === 'READY') {
       setPhase('PERFORM');
       setTimeLeft(30);
@@ -214,6 +207,9 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
     const success = finalStatus === 'Complete';
     return (
       <View style={styles.container}>
+        {/* Background Decorative Shapes */}
+        <View style={[styles.abstractShape, styles.shapeTop, { backgroundColor: success ? '#10B98115' : '#EF444415' }]} />
+        
         <View style={styles.finishedContent}>
           {success ? <CheckCircle color="#10B981" size={60} /> : <AlertCircle color="#EF4444" size={60} />}
           <Text style={styles.finishedTitle}>{success ? 'Workout Complete!' : 'Session Skipped'}</Text>
@@ -229,7 +225,7 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
                 </TouchableOpacity>
               </View>
             ) : (
-              <div style={styles.uploadButtons}>
+              <View style={styles.uploadButtons}>
                 <TouchableOpacity style={styles.uploadBtn} onPress={takePhoto}>
                   <Camera color="#1E3A8A" size={24} />
                   <Text style={styles.uploadBtnText}>Camera</Text>
@@ -238,7 +234,7 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
                   <ImageIcon color="#1E3A8A" size={24} />
                   <Text style={styles.uploadBtnText}>Gallery</Text>
                 </TouchableOpacity>
-              </div>
+              </View>
             )}
           </View>
 
@@ -253,6 +249,10 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
 
   return (
     <View style={styles.container}>
+      {/* Background Decorative Shapes */}
+      <View style={[styles.abstractShape, styles.shapeBottom, { backgroundColor: getPhaseColor() + '10' }]} />
+      <View style={[styles.abstractShape, styles.shapeHeader, { backgroundColor: getPhaseColor() + '08' }]} />
+
       <View style={styles.header}>
         <TouchableOpacity onPress={onComplete}>
           <X color="#0F172A" size={28} />
@@ -272,6 +272,11 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
         <View style={styles.infoBox}>
           <Text style={[styles.phaseTag, { color: getPhaseColor() }]}>{phase}</Text>
           <Text style={styles.exerciseName}>{currentExercise.name}</Text>
+          
+          <View style={styles.descriptionWrapper}>
+            <Info color="#94A3B8" size={14} />
+            <Text style={styles.exerciseDescription}>{currentExercise.description}</Text>
+          </View>
         </View>
         
         {phase !== 'REST' && (
@@ -313,22 +318,50 @@ export default function WorkoutScreen({ workoutData, onComplete, userId, userSta
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
+  container: { flex: 1, backgroundColor: '#FFF', overflow: 'hidden' },
+  // ABSTRACT BACKGROUND SHAPES
+  abstractShape: {
+    position: 'absolute',
+    borderRadius: 200,
+    zIndex: -1,
+  },
+  shapeBottom: {
+    width: width * 1.2,
+    height: width * 1.2,
+    bottom: -width * 0.3,
+    left: -width * 0.1,
+  },
+  shapeHeader: {
+    width: 300,
+    height: 300,
+    top: -50,
+    right: -100,
+    transform: [{ rotate: '45deg' }],
+  },
+  shapeTop: {
+    width: width * 0.8,
+    height: width * 0.8,
+    top: height * 0.1,
+    left: width * 0.1,
+  },
+  // EXISTING STYLES
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
   progressSection: { paddingHorizontal: 20, marginBottom: 10 },
   progressBarBg: { height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%' },
   exerciseCounter: { textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: '700', color: '#94A3B8' },
-  mainDisplay: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20 },
-  infoBox: { alignItems: 'center' },
-  phaseTag: { fontSize: 18, fontWeight: '900', letterSpacing: 2, marginBottom: 5 },
-  exerciseName: { fontSize: 26, fontWeight: '900', color: '#0F172A', textAlign: 'center', paddingHorizontal: 25 },
-  exerciseGif: { width: 200, height: 140, borderRadius: 20 },
-  timerCircle: { width: 150, height: 150, borderRadius: 75, borderWidth: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
-  timerText: { fontSize: 50, fontWeight: '900' },
+  mainDisplay: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+  infoBox: { alignItems: 'center', paddingHorizontal: 30 },
+  phaseTag: { fontSize: 16, fontWeight: '900', letterSpacing: 2, marginBottom: 5 },
+  exerciseName: { fontSize: 24, fontWeight: '900', color: '#0F172A', textAlign: 'center' },
+  descriptionWrapper: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#F8FAFC', padding: 8, borderRadius: 12 },
+  exerciseDescription: { fontSize: 13, color: '#64748B', fontWeight: '500', textAlign: 'center', flexShrink: 1 },
+  exerciseGif: { width: 180, height: 130, borderRadius: 20 },
+  timerCircle: { width: 140, height: 140, borderRadius: 70, borderWidth: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  timerText: { fontSize: 45, fontWeight: '900' },
   timerSub: { fontSize: 12, fontWeight: '800', color: '#94A3B8', marginTop: -5 },
-  controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 20, paddingBottom: 20, marginTop: 10 },
+  controls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 20, paddingBottom: 15 },
   pauseBtn: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
   skipBtn: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
   nextUpCard: { backgroundColor: '#F8FAFC', padding: 20, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingBottom: height * 0.1 },

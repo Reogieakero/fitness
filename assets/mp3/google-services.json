@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1079004051636",
+    "project_id": "safety-locator-and-status",
+    "storage_bucket": "safety-locator-and-status.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1079004051636:android:1868f30d8e7f6d9573bfe1",
+        "android_client_info": {
+          "package_name": "com.sls"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuaQB1MPDomjGAejVYVoJS5pEa3LqqsxU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

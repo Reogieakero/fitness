@@ -62,15 +62,11 @@ export const initDatabase = () => {
     );
   `);
 
-  // SAFETY MIGRATIONS: 
   try {
     db.runSync('ALTER TABLE users ADD COLUMN profileImage TEXT;');
   } catch (e) {}
 };
 
-// --- USER & AUTH FUNCTIONS ---
-
-// NEW: Function to check if email already exists
 export const checkUserExists = (email) => {
   return db.getFirstSync('SELECT id FROM users WHERE email = ?', [email]);
 };
@@ -90,7 +86,6 @@ export const registerUser = (username, email, password, age, weight, height, fit
   );
 };
 
-// --- REMAINING FUNCTIONS (Unchanged) ---
 
 export const saveMealToDB = (userId, meal) => {
   const entryDate = meal.date || new Date().toISOString().split('T')[0];
