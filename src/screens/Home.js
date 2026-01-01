@@ -9,7 +9,6 @@ import {
   CheckCircle2, Quote as QuoteIcon, Zap, Dumbbell, AlertCircle,
   Utensils, Shield, Crown, Droplets, Beef, Wheat, Info
 } from 'lucide-react-native';
-// Ensure you have installed this: npm install react-native-confetti-cannon
 import ConfettiCannon from 'react-native-confetti-cannon';
 
 import { 
@@ -105,15 +104,22 @@ const ActionModal = ({ visible, title, message, type = 'success', onClose }) => 
   return (
     <Modal visible={visible} transparent animationType="none">
       <View style={styles.modalOverlay}>
-        <Animated.View style={[styles.modalContent, { opacity, transform: [{ scale }] }]}>
-          <View style={[styles.alertIconWrapper, { backgroundColor: theme.bg }]}>
-            {type === 'success' ? <Trophy color={theme.icon} size={40} /> : <AlertCircle color={theme.icon} size={40} />}
+        <Animated.View style={[styles.modalContent, styles.polishedModal, { opacity, transform: [{ scale }] }]}>
+          <View style={{ alignItems: 'center', paddingHorizontal: 24, paddingTop: 10 }}>
+            <View style={[styles.alertIconWrapper, { backgroundColor: theme.bg }]}>
+              {type === 'success' ? <Trophy color={theme.icon} size={40} /> : <AlertCircle color={theme.icon} size={40} />}
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.color, textAlign: 'center' }]}>{title}</Text>
+            <Text style={[styles.alertMessage, { marginBottom: 20 }]}>{message}</Text>
           </View>
-          <Text style={[styles.modalTitle, { color: theme.color }]}>{title}</Text>
-          <Text style={styles.alertMessage}>{message}</Text>
-          <TouchableOpacity style={[styles.closeBtn, { backgroundColor: theme.btn, marginTop: 10 }]} onPress={handleClose}>
-            <Text style={styles.closeBtnText}>CONTINUE</Text>
-          </TouchableOpacity>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity 
+              style={[styles.closeBtn, { backgroundColor: theme.btn, paddingVertical: 18, borderRadius: 20 }]} 
+              onPress={handleClose}
+            >
+              <Text style={[styles.closeBtnText, { fontSize: 16, fontWeight: '900' }]}>CONTINUE</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -195,13 +201,13 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
   const intensities = [
     { id: 'Low', title: 'Light', desc: 'Focus on mobility and steady movement.', color: '#10B981', xp: 15 },
     { id: 'Medium', title: 'Moderate', desc: 'Balanced cardio and strength routine.', color: '#6366F1', xp: 30 },
-    { id: 'High', title: 'Intense', desc: 'High-energy HIIT and heavy lifting.', color: '#EF4444', xp: 50 },
+    { id: 'High', title: 'Advanced', desc: 'High-energy HIIT and heavy lifting.', color: '#EF4444', xp: 50 },
   ];
 
   const exercisePool = {
-    Low: ["BRIDGE", "LEG RAISE", "SIDE LEG RAISE", "WALL SIT"],
-    Medium: ["SQUATS", "SIT UPS", "LUNGES", "PUSH UPS", "SIDE LUNGES", "AIR BIKE"],
-    High: ["BURPEES", "JUMPING JACKS", "MOUNTAIN CLIMBER", "RUNNING IN PLACE", "PLANK WITH LEG RAISE", "SUPERMAN"]
+    Low: ["AIR BIKE", "BRIDGE", "JUMPING JACKS", "LEG RAISE", "SIDE LEG RAISE", "WALL SIT", "RUNNING IN PLACE"],
+    Medium: ["SIDE LUNGES", "LUNGES", "SQUATS", "SIT UPS", "PLANK WITH LEG RAISE", "MOUNTAIN CLIMBER"],
+    High: ["BURPEES", "PUSH UPS", "SUPERMAN"]
   };
 
   const currentXp = user?.xp || 0;
@@ -260,7 +266,6 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
     saveQuestCompletion(user.id, questId);
     setUser(prev => ({ ...prev, xp: newXp, level: newLevel }));
     
-    // Update local state and check for full completion
     const updatedQuests = quests.map(q => q.id === questId ? { ...q, completed: true } : q);
     setQuests(updatedQuests);
 
@@ -300,13 +305,11 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* 1. Modals & Alerts */}
       <ActionModal 
         visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} type={alertConfig.type} 
         onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} 
       />
 
-      {/* 2. Main Content */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
@@ -370,6 +373,49 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
         </TouchableOpacity>
       </ScrollView>
 
+      {/* --- MISSION MODAL (UPDATED FOR NO OVERFLOW) --- */}
+      <Modal visible={showWorkoutModal} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.modalContent, styles.polishedModal, { height: '85%', opacity: workoutAnim, transform: [{ scale: workoutAnim }] }]}>
+            <View style={styles.modalHeader}>
+              <View><Text style={styles.modalTitle}>{generatedWorkout ? 'Mission File' : 'Mission Selection'}</Text></View>
+              <TouchableOpacity onPress={() => closeModal(setShowWorkoutModal, workoutAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
+            </View>
+            
+            <View style={{ flex: 1 }}>
+              {!generatedWorkout ? (
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }} bounces={false} overScrollMode="never">
+                  {intensities.map((item) => (
+                    <TouchableOpacity key={item.id} style={styles.intensityCard} onPress={() => handleGenerateWorkout(item)}>
+                      <View style={[styles.intensityIcon, { backgroundColor: item.color + '15' }]}><Zap color={item.color} size={24} /></View>
+                      <View style={{ flex: 1, marginLeft: 15 }}><Text style={styles.intensityTitle}>{item.title}</Text><Text style={styles.intensityDesc}>{item.desc}</Text></View>
+                      <ChevronRight color="#CBD5E1" size={20} />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20 }}>
+                    <View style={styles.workoutBanner}><Dumbbell color="#1E3A8A" size={20} /><Text style={styles.workoutBannerText}>Mission XP: +{generatedWorkout.xp}</Text></View>
+                    {generatedWorkout.exercises.map((ex, idx) => (
+                      <View key={idx} style={styles.exerciseItem}>
+                        <View style={styles.exerciseIndexBox}><Text style={styles.exerciseIndex}>{idx + 1}</Text></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.exerciseName}>{ex.name}</Text>
+                          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{ex.description}</Text>
+                          <Image source={ex.gif} style={styles.exerciseGif} resizeMode="contain" />
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <View style={styles.modalFooter}><TouchableOpacity style={styles.completeBtn} onPress={handleCompleteWorkout}><Text style={styles.completeBtnText}>ENGAGE PROTOCOL</Text></TouchableOpacity></View>
+                </View>
+              )}
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
       {/* --- NUTRITION MODAL --- */}
       <Modal visible={showNutritionModal} transparent animationType="none">
         <View style={styles.modalOverlay}>
@@ -409,52 +455,6 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
         </View>
       </Modal>
 
-      {/* --- MISSION MODAL --- */}
-      <Modal visible={showWorkoutModal} transparent animationType="none">
-        <View style={styles.modalOverlay}>
-          <Animated.View style={[styles.modalContent, styles.polishedModal, { maxHeight: '85%', opacity: workoutAnim, transform: [{ scale: workoutAnim }] }]}>
-            <View style={styles.modalHeader}>
-              <View><Text style={styles.modalTitle}>{generatedWorkout ? 'Mission File' : 'Mission Selection'}</Text></View>
-              <TouchableOpacity onPress={() => closeModal(setShowWorkoutModal, workoutAnim)}><X color="#0F172A" size={24} /></TouchableOpacity>
-            </View>
-            <View style={{ width: '100%' }}>
-              {!generatedWorkout ? (
-                <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }} bounces={false} overScrollMode="never">
-                  {intensities.map((item) => (
-                    <TouchableOpacity key={item.id} style={styles.intensityCard} onPress={() => handleGenerateWorkout(item)}>
-                      <View style={[styles.intensityIcon, { backgroundColor: item.color + '15' }]}><Zap color={item.color} size={24} /></View>
-                      <View style={{ flex: 1, marginLeft: 15 }}><Text style={styles.intensityTitle}>{item.title}</Text><Text style={styles.intensityDesc}>{item.desc}</Text></View>
-                      <ChevronRight color="#CBD5E1" size={20} />
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              ) : (
-                <View>
-                  <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20 }}>
-                    <View style={styles.workoutBanner}><Dumbbell color="#1E3A8A" size={20} /><Text style={styles.workoutBannerText}>Mission XP: +{generatedWorkout.xp}</Text></View>
-                    {generatedWorkout.exercises.map((ex, idx) => (
-                      <View key={idx} style={styles.exerciseItem}>
-                        <View style={styles.exerciseIndexBox}><Text style={styles.exerciseIndex}>{idx + 1}</Text></View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.exerciseName}>{ex.name}</Text>
-                          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{ex.description}</Text>
-                          <Image 
-                             source={ex.gif} 
-                             style={{ width: 80, height: 80, marginTop: 10, borderRadius: 12 }} 
-                             resizeMode="contain"
-                          />
-                        </View>
-                      </View>
-                    ))}
-                  </ScrollView>
-                  <View style={styles.modalFooter}><TouchableOpacity style={styles.completeBtn} onPress={handleCompleteWorkout}><Text style={styles.completeBtnText}>ENGAGE PROTOCOL</Text></TouchableOpacity></View>
-                </View>
-              )}
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
-
       {/* --- HALL OF FAME MODAL --- */}
       <Modal visible={showAchievements} transparent animationType="none">
         <View style={styles.modalOverlay}>
@@ -483,7 +483,6 @@ export default function Home({ user: initialUser, onWorkoutStart }) {
         </View>
       </Modal>
 
-      {/* 3. ConfettiCannon placed LAST so it appears in FRONT of everything */}
       {showConfetti && (
         <ConfettiCannon 
           count={200} 
@@ -572,6 +571,7 @@ const styles = StyleSheet.create({
   exerciseIndexBox: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   exerciseIndex: { fontSize: 11, fontWeight: '900', color: '#1E3A8A' },
   exerciseName: { flex: 1, fontSize: 14, fontWeight: '700', color: '#334155' },
+  exerciseGif: { width: 80, height: 80, marginTop: 10, borderRadius: 12 },
   modalFooter: { padding: 20 },
   completeBtn: { backgroundColor: '#059669', padding: 18, borderRadius: 20, alignItems: 'center' },
   completeBtnText: { color: '#FFF', fontWeight: '900', fontSize: 16 },

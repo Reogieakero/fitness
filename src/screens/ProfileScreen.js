@@ -219,7 +219,7 @@ export default function ProfileScreen({ userId, onLogout }) {
               <View style={[styles.menuIcon, { backgroundColor: '#EEF2FF' }]}>
                 <Info color="#4F46E5" size={20} />
               </View>
-              <Text style={styles.menuText}>About Fitness Hero</Text>
+              <Text style={styles.menuText}>About KinetiQo</Text>
               <ChevronRight color="#CBD5E1" size={20} />
             </TouchableOpacity>
 
@@ -242,11 +242,11 @@ export default function ProfileScreen({ userId, onLogout }) {
           <View style={styles.proModal}>
             <View style={styles.modalIndicator} />
             <Trophy color="#F59E0B" size={48} style={{ marginBottom: 10 }} />
-            <Text style={styles.modalTitle}>RiseActive RPG</Text>
+            <Text style={styles.modalTitle}>KinetiQo RPG</Text>
             <View style={styles.aboutContent}>
               <Text style={styles.aboutDesc}>
                 Welcome to the ultimate gamified fitness experience. {"\n\n"}
-                RiseActive turns your daily grind into an epic adventure. Log your workouts to gain XP, complete missions to level up your real-life stats, and track your progress through our RPG-inspired interface.
+                KinetiQo turns your daily grind into an epic adventure. Log your workouts to gain XP, complete missions to level up your real-life stats, and track your progress through our RPG-inspired interface.
               </Text>
               <View style={styles.versionBadge}>
                 <Text style={styles.versionText}>BUILD v1.2.0 - STABLE</Text>
